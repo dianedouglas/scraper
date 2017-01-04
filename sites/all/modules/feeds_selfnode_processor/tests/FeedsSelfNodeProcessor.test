@@ -1,0 +1,127 @@
+<?php
+
+/**
+ * @file
+ * Contains FeedsSelfNodeProcessorTest.
+ */
+
+/**
+ * Tests FeedsSelfNodeProcessor.
+ */
+class FeedsSelfNodeProcessorTest extends FeedsWebTestCase {
+
+  public static function getInfo() {
+    return array(
+      'name' => 'Functionality tests',
+      'description' => 'Basic tests for FeedsSelfNodeProcessor',
+      'group' => 'Feeds Selfnode Processor',
+    );
+  }
+
+  public function setUp() {
+    parent::setUp(array('feeds_selfnode_processor', 'feeds_selfnode_processor_test'));
+
+    $this->createImporterConfiguration('Syndication', 'syndication');
+    $this->setPlugin('syndication', 'FeedsSelfNodeProcessor');
+
+    $this->addMappings('syndication', array(
+      0 => array(
+        'source' => 'title',
+        'target' => 'title',
+      ),
+      1 => array(
+        'source' => 'description',
+        'target' => 'body',
+      ),
+      2 => array(
+        'source' => 'timestamp',
+        'target' => 'created',
+      ),
+    ));
+  }
+
+  public function test() {
+    $edit = array(
+      'title' => 'asfdasfd',
+      'feeds[FeedsHTTPFetcher][source]' => $GLOBALS['base_url'] . '/' . drupal_get_path('module', 'feeds') . '/tests/feeds/developmentseed.rss2',
+    );
+    $this->drupalPost('node/add/page', $edit, t('Save'));
+    $this->assertText('Updated Open Atrium Translation Workflow: Two Way Translation Updates');
+
+    // It's the first node. Duh.
+    $nid = 1;
+
+    // Check that we have an item.
+    $this->assertEqual(1, db_query("SELECT 1 FROM {feeds_selfnode_processor_item} WHERE feed_nid = :nid", array(':nid' => $nid))->fetchField());
+
+    // Check that we don't have a feed item.
+    $this->assertEqual(0, db_query("SELECT COUNT(*) FROM {feeds_item}")->fetchField());
+
+    // Check that values are correctly mapped.
+    $node = node_load($nid);
+    $this->assertEqual('Open Atrium Translation Workflow: Two Way Translation Updates', $node->title);
+    $this->assertEqual(1254842508, $node->created);
+
+    // Check that hash checking works.
+    $this->drupalPost('node/' . $nid . '/import', array(), t('Import'));
+    $this->assertText('Open Atrium Translation Workflow: Two Way Translation Updates has not changed.');
+
+    // Check that skip_hash_check works.
+    $this->setSettings('syndication', 'FeedsSelfNodeProcessor', array('skip_hash_check' => 1));
+    $this->drupalPost('node/' . $nid . '/import', array(), t('Import'));
+    $this->assertText('Updated Open Atrium Translation Workflow: Two Way Translation Updates');
+    $this->assertEqual(1, db_query("SELECT COUNT(*) FROM {feeds_selfnode_processor_item} WHERE feed_nid = :nid", array(':nid' => $nid))->fetchField());
+    $this->assertEqual(0, db_query("SELECT COUNT(*) FROM {feeds_item}")->fetchField());
+  }
+
+  public function testImportOnCreate() {
+    // The main thing we're testing.
+    $this->setSettings('syndication', 'FeedsSelfNodeProcessor', array('import_on_create' => 1));
+
+    // Allows us to download test-enabled urls.
+    variable_set('feeds_never_use_curl', TRUE);
+
+    // Create a CSV parser that will import self node processor items.
+    $this->createImporterConfiguration('Parent', 'parent');
+    $this->setSettings('parent', '', array('content_type' => ''));
+    $this->setPlugin('parent', 'FeedsCSVParser');
+    $this->setSettings('parent', 'FeedsNodeProcessor', array('bundle' => 'page'));
+
+    $this->addMappings('parent', array(
+      0 => array(
+        'source' => 'url',
+        'target' => 'title',
+      ),
+      1 => array(
+        'source' => 'url',
+        'target' => 'feeds_source',
+        'unique' => TRUE,
+      ),
+    ));
+
+    $this->importURL('parent', url('_feeds_selfnode_processor_test/csv', array('absolute' => TRUE)));
+    $this->assertText('Created 2 nodes.');
+    $this->assertText('Updated Open Atrium Translation Workflow: Two Way Translation Updates');
+    $this->assertText('Megint csak a balhé + Videó');
+
+    // Check that the nodes were imported.
+    $this->assertEqual('Open Atrium Translation Workflow: Two Way Translation Updates', node_load(1)->title);
+    $this->assertEqual('Megint csak a balhé + Videó', trim(node_load(2)->title));
+
+    $this->assertEqual(2, db_query("SELECT COUNT(*) FROM {feeds_selfnode_processor_item} WHERE id = 'syndication'")->fetchField());
+    $this->assertEqual(2, db_query("SELECT COUNT(*) FROM {node}")->fetchField());
+
+    // We have 2 nodes that still belong to the parent.
+    $this->assertEqual(2, db_query("SELECT COUNT(*) FROM {feeds_item} WHERE id = 'parent'")->fetchField());
+
+    // Import each individual node.
+    $this->drupalPost('node/1/import', array(), t('Import'));
+    $this->drupalPost('node/2/import', array(), t('Import'));
+
+    // We still have 2 nodes owned by parent.
+    $this->assertEqual(2, db_query("SELECT COUNT(*) FROM {feeds_item} WHERE id = 'parent'")->fetchField());
+    $this->assertEqual(2, db_query("SELECT COUNT(*) FROM {feeds_selfnode_processor_item} WHERE id = 'syndication'")->fetchField());
+    $this->assertEqual(2, db_query("SELECT COUNT(*) FROM {node}")->fetchField());
+  }
+
+}

@@ -1,0 +1,66 @@
+<?php
+
+/**
+ * @file
+ * Schema definitions install/update/uninstall hooks.
+ */
+
+/**
+ * Implements hook_enable().
+ */
+function feeds_selfnode_processor_enable() {
+  cache_clear_all('plugins:feeds:plugins', 'cache');
+}
+
+/**
+ * Implements hook_schema().
+ */
+function feeds_selfnode_processor_schema() {
+  return feeds_selfnode_processor_schema_v1();
+}
+
+function feeds_selfnode_processor_schema_v1() {
+  $schema = array();
+  $schema['feeds_selfnode_processor_item'] = array(
+    'description' => 'Tracks selfnode_processor nodes.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'varchar',
+        'length' => 128,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'The id of the importer that created this item.',
+      ),
+      'feed_nid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => 'Node id of the source.',
+      ),
+      'imported' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'Import date of the feed item, as a Unix timestamp.',
+      ),
+      'hash' => array(
+        'type' => 'varchar',
+        'length' => 32, // The length of an MD5 hash.
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'The hash of the source item.',
+      ),
+    ),
+    'primary key' => array('feed_nid'),
+  );
+
+  return $schema;
+}
+
+/**
+ * Create {feeds_selfnode_processor_item}.
+ */
+function feeds_selfnode_processor_update_7100() {
+  $schema = feeds_selfnode_processor_schema_v1();
+  db_create_table('feeds_selfnode_processor_item', $schema['feeds_selfnode_processor_item']);
+}

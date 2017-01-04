@@ -1,0 +1,3 @@
+<?php
+
+include_once('example_web_scraper.features.inc');
