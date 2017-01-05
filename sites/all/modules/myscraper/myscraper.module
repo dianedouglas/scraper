@@ -26,20 +26,30 @@ $url = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/ca
 // Empty array to hold all links to return 
 $links = array(); 
 $ptags = array(); 
+$imgs = array(); 
 
 //Loop through each <a> tag in the dom and add it to the link array 
 foreach($html->getElementsByTagName('a') as $link) { 
     $links[] = array('url' => $link->getAttribute('href'), 'text' => $link->nodeValue); 
 } 
 // urls all have .m3u at end
-pre_print($links);
+// pre_print($links);
 
 
 foreach($html->getElementsByTagName('p') as $ptag) { 
 
     $ptags[] = $ptag->nodeValue; 
 } 
+// Each of these is a complete review. Need to parse out the title, artist, label, and each mpeg stream. 
 // pre_print($ptags);
+
+foreach($html->getElementsByTagName('img') as $img) { 
+    if ($img->getAttribute('alt') == 'album cover') {
+      $imgs[] = $img->getAttribute('src');
+    }
+} 
+// gets all album covers. one per album! 
+pre_print($imgs);
 
 return 'test';
 
