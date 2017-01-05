@@ -29,11 +29,20 @@ $ptags = array();
 $imgs = array(); 
 
 //Loop through each <a> tag in the dom and add it to the link array 
+$count = 0;
 foreach($html->getElementsByTagName('a') as $link) { 
+  if ($count > 116) {
     $links[] = array('url' => $link->getAttribute('href'), 'text' => $link->nodeValue); 
-} 
+  }
+  if ($link->nodeValue === '1') {
+    break;
+  }
+  $count++;
+}
+array_pop($links);
+array_pop($links);
 // urls all have .m3u at end
-// pre_print($links);
+pre_print($links);
 $alphabet = range('a', 'z');
 $reviews = array();
 $childNodes = array();
@@ -49,9 +58,6 @@ foreach($html->getElementsByTagName('p') as $ptag) {
       if ($node->nodeValue) {
         $reviews['review' . $review_index][] = $node->nodeValue;
       }
-      // if ($node->getAttribute('alt') == 'album cover') {
-      //   $reviews['review0']['img'] = $img->getAttribute('src');
-      // }
     }
     $review_index++;
   }
@@ -67,9 +73,15 @@ foreach ($reviews as $key => $review) {
   $formatted_reviews[$key]['labelinfo'] = $review['3'];
   for($i = 4; $i < count($review); $i++){
     if (!strpos($review[$i], "CURRENTLY OUT OF PRINT")) {
-      if(substr($review[$i], 0, 11) === "MPEG Stream" || substr($review[$i], 0, 9) === "RealAudio"){
-
-      } else {
+      if(substr($review[$i], 0, 11) === "MPEG Stream"){
+        $song_title = substr($review[$i], 14);
+        $song_title = rtrim($song_title, '"');
+        $formatted_reviews[$key]['audio'][$song_title] = '';
+      } elseif (substr($review[$i], 0, 9) === "RealAudio") {
+        $song_title = substr($review[$i], 17);
+        $song_title = rtrim($song_title, '"');
+        $formatted_reviews[$key]['audio'][$song_title] = '';
+      }else {
         $formatted_reviews[$key]['body'][] = $review[$i];
       }
     }
@@ -87,47 +99,6 @@ foreach($html->getElementsByTagName('img') as $img) {
 } 
 // gets all album covers. one per album! 
 // pre_print($imgs);
-
-
-
-// $xml = simple_get_xml('https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/a.html');
-
-// // run an XPath query on the blogroll block's unordered list
-// $block = $xml->xpath('//p');
-// $count = 0;
-// foreach ($block as $value) {
-//   $count++;
-//   pre_print($value);
-//   if ($count === 3) {
-//     return 'test';
-//   }
-// }
-/* This looks nasty -- and indeed it is... Its as nasty as the curved block markup at drupal.org.
--1. Why $block[0]? That's simply because xpath returns an array even when only one item is found
--2. Why $block->div? A: "div" is the name of the element; if you wanted to access the headers instead, you'd do:
-"$block->h2"
--3. Why $block->div[0]? A: See number 1.
--4. Why didn't you use xpath to select the item list? A: Damn you! Because I haven't really learned xpath yet...
-*/
-
-// get ready to build a table
-// $rows = array();
-// $header = array('Blog Name', 'Link', 'RSS Feed');
-// foreach ($block[0]->div[0]->div[0]->div[0]->div[0]->ul[0]->li as $item) {
-// $row = array();
-// // the array key is 0 since its the first link in the item-list's line
-// $blog_link = $item->a[0];
-// // the array is 1 since -- duh -- the feed is the second link in the item-list's line
-// $feed_link = $item->a[1];
-// // covert the blog_link hyperlink object into a simple string
-// $row[] = (string)$blog_link;
-// // access the "href" attribute
-// $row[] = $blog_link['href'];
-// $row[] = $feed_link['href'];
-// $rows[] = $row;
-// }
-// $output = theme('table', $header, $rows);
-// return $output;
 }
 
 function simple_get_xml($url) {
