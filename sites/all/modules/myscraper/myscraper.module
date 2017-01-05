@@ -18,7 +18,7 @@ function simplexml_drupal_blogroll() {
 
 
 $html = new DOMDocument();
-$url = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/a.html';
+$url = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/f2.html';
 @$html->loadHTMLFile($url);
 // pre_print($html);
 
@@ -35,13 +35,30 @@ foreach($html->getElementsByTagName('a') as $link) {
 // urls all have .m3u at end
 // pre_print($links);
 
-
+$reviews = array();
+$childNodes = array();
+$count = 0;
+$review_index = 0;
 foreach($html->getElementsByTagName('p') as $ptag) { 
+  $count++;
+  if ($count > 4) {
+    // $ptags[] = $ptag->nodeValue;
 
-    $ptags[] = $ptag->nodeValue; 
+    foreach ($ptag->childNodes as $node) {
+    // for each thing inside a review...
+      if ($node->nodeValue) {
+        $reviews['review' . $review_index][] = $node->nodeValue;
+      }
+      // if ($node->getAttribute('alt') == 'album cover') {
+      //   $reviews['review0']['img'] = $img->getAttribute('src');
+      // }
+    }
+    $review_index++;
+  }
 } 
+    pre_print($reviews);
+    return 'test';
 // Each of these is a complete review. Need to parse out the title, artist, label, and each mpeg stream. 
-// pre_print($ptags);
 
 foreach($html->getElementsByTagName('img') as $img) { 
     if ($img->getAttribute('alt') == 'album cover') {
@@ -49,9 +66,8 @@ foreach($html->getElementsByTagName('img') as $img) {
     }
 } 
 // gets all album covers. one per album! 
-pre_print($imgs);
+// pre_print($imgs);
 
-return 'test';
 
 
 // $xml = simple_get_xml('https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/a.html');
