@@ -56,7 +56,17 @@ foreach($html->getElementsByTagName('p') as $ptag) {
     $review_index++;
   }
 } 
-    pre_print($reviews);
+
+$formatted_reviews = array();
+foreach ($reviews as $key => $review) {
+  if ($review['1'] === 'top of page') {
+    break;
+  }
+  $formatted_reviews[$key]['artist'] = $review['1'];
+  $formatted_reviews[$key]['title'] = $review['2'];
+
+}
+    pre_print($formatted_reviews);
     return 'test';
 // Each of these is a complete review. Need to parse out the title, artist, label, and each mpeg stream. 
 
