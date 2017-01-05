@@ -1,0 +1,109 @@
+<?php
+/**
+* Implementation of hook_menu().
+*
+*/
+function myscraper_menu() {
+  $items['simplexml'] = array(
+    'title' => t('Drupal Planet: The Blogroll'),
+    'page callback' => 'simplexml_drupal_blogroll',
+    'access arguments' => array('access content'),
+    'type' => MENU_NORMAL_ITEM
+  );
+  return $items;
+}
+
+function simplexml_drupal_blogroll() {
+// Get all records that begin with the letter A.
+
+
+$html = new DOMDocument();
+$url = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/a.html';
+@$html->loadHTMLFile($url);
+// pre_print($html);
+
+
+// Empty array to hold all links to return 
+$links = array(); 
+$ptags = array(); 
+
+//Loop through each <a> tag in the dom and add it to the link array 
+foreach($html->getElementsByTagName('a') as $link) { 
+    $links[] = array('url' => $link->getAttribute('href'), 'text' => $link->nodeValue); 
+} 
+// urls all have .m3u at end
+pre_print($links);
+
+
+foreach($html->getElementsByTagName('p') as $ptag) { 
+
+    $ptags[] = $ptag->nodeValue; 
+} 
+// pre_print($ptags);
+
+return 'test';
+
+
+// $xml = simple_get_xml('https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/a.html');
+
+// // run an XPath query on the blogroll block's unordered list
+// $block = $xml->xpath('//p');
+// $count = 0;
+// foreach ($block as $value) {
+//   $count++;
+//   pre_print($value);
+//   if ($count === 3) {
+//     return 'test';
+//   }
+// }
+/* This looks nasty -- and indeed it is... Its as nasty as the curved block markup at drupal.org.
+-1. Why $block[0]? That's simply because xpath returns an array even when only one item is found
+-2. Why $block->div? A: "div" is the name of the element; if you wanted to access the headers instead, you'd do:
+"$block->h2"
+-3. Why $block->div[0]? A: See number 1.
+-4. Why didn't you use xpath to select the item list? A: Damn you! Because I haven't really learned xpath yet...
+*/
+
+// get ready to build a table
+// $rows = array();
+// $header = array('Blog Name', 'Link', 'RSS Feed');
+// foreach ($block[0]->div[0]->div[0]->div[0]->div[0]->ul[0]->li as $item) {
+// $row = array();
+// // the array key is 0 since its the first link in the item-list's line
+// $blog_link = $item->a[0];
+// // the array is 1 since -- duh -- the feed is the second link in the item-list's line
+// $feed_link = $item->a[1];
+// // covert the blog_link hyperlink object into a simple string
+// $row[] = (string)$blog_link;
+// // access the "href" attribute
+// $row[] = $blog_link['href'];
+// $row[] = $feed_link['href'];
+// $rows[] = $row;
+// }
+// $output = theme('table', $header, $rows);
+// return $output;
+}
+
+function simple_get_xml($url) {
+  $html = new DOMDocument();
+  // fetch drupal planet and parse it (@ suppresses warnings).
+  @$html->loadHTMLFile($url);
+  // convert DOM to SimpleXML
+  $xml = simplexml_import_dom($html);
+  return $xml;
+}
+
+/* useful debugging function */
+function pre_print($input) {
+  print '<pre>';
+  print_r($input);
+  print '</pre>';
+}
+
+/*
+
+A BOLHAUm Passo A Frente(Lion Productions ) cd 14.98Following the Tetragon highlighted here last list, and other recent releases like Sergius Golowin and Guru Guru, what treat does the meritorious and meticulous reissue label Lion Productions have for us THIS week? Another obscure, freaky gem of dusty vintage, yes, but this time not krautrock, instead it's from another wonderful subgenre, that of Latin American psychedelia! This Brazilian band flourished circa 1965-1978, starting off as a Beatlesy dance pop group called The Bubbles, before changing their name to its Portuguese equivalent A Bolha in 1970 and going for a harder, more progressive rock sound, inspired in part by the bands they'd seen on a trip to England, at the Isle of Wight festival. All this according to the extensive liner notes in the thick, illustrated cd booklet, which provides plenty of info about the band and their career, including their stint as backing band for Tropicalia star Gal Costa. But history aside, what matters is the music, and even today A Bolha's lively grooves are pretty great! This album, Um Passo A Frente, was recorded and released originally in 1973, and is rightly considered a Brazilian rock classic of the era. These tracks (7 from the album proper, plus fantastic 2 bonus cuts included on this reissue) range wildly across the spectrum of pop psych / hard rock / Tropicalia, incorporating laidback vibes, vocal harmonies (all songs sung in Portuguese), sudden prog rock changes (and song lengths, a couple up to 9 and 10 minutes), swirling organ, acid rock guitar soloing, honkytonk piano plinkery, frenetic percussion, countryish blues moods, bubblegum boogiewoogie, and even some free jazz squealing sax (such as during side two's epic "A Espera", which also has some really great freak out moments for all of us flute fanciers!). If we had to pick, our favorite track might be "Tempos Constantes", mixing fuzzy guitar riffage n' rippery with out-and-out uptempo sunshiney pop, but it's a tough call. And then there's the bonus cuts. If anything, those two tracks from A Bolha's debut 1971 single are heavier / druggier / jammier than the preceding cuts on this disc, the band apparently lightening up a bit for the album two years later. Worth it for those two alone, almost! Definitely one for fans of South American psych all told, if you like the likes of later Os Mutantes, Los Dug Dugs, Bango, Embrujo, Som Imaginario, Color Humano, Miguel Cantilo, et. al. And in some weird way, we're even reminded a bit of recent Comets On Fire output!NB Although what we said above about Lion Productions being meticulous with their reissues is generally true, we did discover that despite their best efforts, the track listing and disc programming here is screwed up, for one thing tracks 6 and 7 appear to be switched around. Whoops! Lion is quite chagrined and will post corrected information to their website asap. 
+
+*/
+
+?>

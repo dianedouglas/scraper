@@ -1,0 +1,5 @@
+name = My Scraper
+description = Scrape a website.
+package = Custom
+core = 7.x
+files[] = myscraper.module
