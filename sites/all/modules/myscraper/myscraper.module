@@ -34,7 +34,7 @@ foreach($html->getElementsByTagName('a') as $link) {
 } 
 // urls all have .m3u at end
 // pre_print($links);
-
+$alphabet = range('a', 'z');
 $reviews = array();
 $childNodes = array();
 $count = 0;
@@ -67,14 +67,17 @@ foreach ($reviews as $key => $review) {
   $formatted_reviews[$key]['labelinfo'] = $review['3'];
   for($i = 4; $i < count($review); $i++){
     if (!strpos($review[$i], "CURRENTLY OUT OF PRINT")) {
-      $formatted_reviews[$key]['body'][] = $review[$i];
-      
+      if(substr($review[$i], 0, 11) === "MPEG Stream" || substr($review[$i], 0, 9) === "RealAudio"){
+
+      } else {
+        $formatted_reviews[$key]['body'][] = $review[$i];
+      }
     }
   }
 
 }
-    pre_print($formatted_reviews);
-    return 'test';
+pre_print($formatted_reviews);
+return 'test';
 // Each of these is a complete review. Need to parse out the title, artist, label, and each mpeg stream. 
 
 foreach($html->getElementsByTagName('img') as $img) { 
