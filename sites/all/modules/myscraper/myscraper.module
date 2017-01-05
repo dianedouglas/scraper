@@ -89,7 +89,6 @@ foreach ($reviews as $key => $review) {
 
 }
 pre_print($formatted_reviews);
-return 'test';
 // Each of these is a complete review. Need to parse out the title, artist, label, and each mpeg stream. 
 
 foreach($html->getElementsByTagName('img') as $img) { 
@@ -98,7 +97,12 @@ foreach($html->getElementsByTagName('img') as $img) {
     }
 } 
 // gets all album covers. one per album! 
-// pre_print($imgs);
+pre_print($imgs);
+return 'test';
+// figure out which album the cover was from. 
+// link audio urls to audio titles in formatted reviews table. 
+// add nodes based on table. 
+// loop through all pages.
 }
 
 function simple_get_xml($url) {
@@ -110,17 +114,10 @@ function simple_get_xml($url) {
   return $xml;
 }
 
-/* useful debugging function */
 function pre_print($input) {
   print '<pre>';
   print_r($input);
   print '</pre>';
 }
-
-/*
-
-A BOLHAUm Passo A Frente(Lion Productions ) cd 14.98Following the Tetragon highlighted here last list, and other recent releases like Sergius Golowin and Guru Guru, what treat does the meritorious and meticulous reissue label Lion Productions have for us THIS week? Another obscure, freaky gem of dusty vintage, yes, but this time not krautrock, instead it's from another wonderful subgenre, that of Latin American psychedelia! This Brazilian band flourished circa 1965-1978, starting off as a Beatlesy dance pop group called The Bubbles, before changing their name to its Portuguese equivalent A Bolha in 1970 and going for a harder, more progressive rock sound, inspired in part by the bands they'd seen on a trip to England, at the Isle of Wight festival. All this according to the extensive liner notes in the thick, illustrated cd booklet, which provides plenty of info about the band and their career, including their stint as backing band for Tropicalia star Gal Costa. But history aside, what matters is the music, and even today A Bolha's lively grooves are pretty great! This album, Um Passo A Frente, was recorded and released originally in 1973, and is rightly considered a Brazilian rock classic of the era. These tracks (7 from the album proper, plus fantastic 2 bonus cuts included on this reissue) range wildly across the spectrum of pop psych / hard rock / Tropicalia, incorporating laidback vibes, vocal harmonies (all songs sung in Portuguese), sudden prog rock changes (and song lengths, a couple up to 9 and 10 minutes), swirling organ, acid rock guitar soloing, honkytonk piano plinkery, frenetic percussion, countryish blues moods, bubblegum boogiewoogie, and even some free jazz squealing sax (such as during side two's epic "A Espera", which also has some really great freak out moments for all of us flute fanciers!). If we had to pick, our favorite track might be "Tempos Constantes", mixing fuzzy guitar riffage n' rippery with out-and-out uptempo sunshiney pop, but it's a tough call. And then there's the bonus cuts. If anything, those two tracks from A Bolha's debut 1971 single are heavier / druggier / jammier than the preceding cuts on this disc, the band apparently lightening up a bit for the album two years later. Worth it for those two alone, almost! Definitely one for fans of South American psych all told, if you like the likes of later Os Mutantes, Los Dug Dugs, Bango, Embrujo, Som Imaginario, Color Humano, Miguel Cantilo, et. al. And in some weird way, we're even reminded a bit of recent Comets On Fire output!NB Although what we said above about Lion Productions being meticulous with their reissues is generally true, we did discover that despite their best efforts, the track listing and disc programming here is screwed up, for one thing tracks 6 and 7 appear to be switched around. Whoops! Lion is quite chagrined and will post corrected information to their website asap. 
-
-*/
 
 ?>
