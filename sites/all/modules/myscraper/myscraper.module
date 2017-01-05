@@ -64,6 +64,13 @@ foreach ($reviews as $key => $review) {
   }
   $formatted_reviews[$key]['artist'] = $review['1'];
   $formatted_reviews[$key]['title'] = $review['2'];
+  $formatted_reviews[$key]['labelinfo'] = $review['3'];
+  for($i = 4; $i < count($review); $i++){
+    if (!strpos($review[$i], "CURRENTLY OUT OF PRINT")) {
+      $formatted_reviews[$key]['body'][] = $review[$i];
+      
+    }
+  }
 
 }
     pre_print($formatted_reviews);
