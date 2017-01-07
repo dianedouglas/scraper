@@ -114,6 +114,15 @@ foreach ($formatted_reviews as $review_index => $review) {
 
 
 pre_print($formatted_reviews);
+
+$node = new StdClass();
+$node->type = 'review';
+$node->status = 1;
+$node->title = "Step up to the FLava";
+$node->body = "Body Body body";
+node_save($node);
+
+
 // Each of these is a complete review. Need to parse out the title, artist, label, and each mpeg stream. 
 
 // foreach($html->getElementsByTagName('img') as $img) { 
