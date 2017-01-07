@@ -5,15 +5,15 @@
 */
 function myscraper_menu() {
   $items['simplexml'] = array(
-    'title' => t('Drupal Planet: The Blogroll'),
-    'page callback' => 'simplexml_drupal_blogroll',
+    'title' => t('Aquarius Records Reviews'),
+    'page callback' => 'scraper',
     'access arguments' => array('access content'),
     'type' => MENU_NORMAL_ITEM
   );
   return $items;
 }
 
-function simplexml_drupal_blogroll() {
+function scraper() {
 // Get all records that begin with the letter A.
 
 
@@ -64,6 +64,7 @@ foreach($html->getElementsByTagName('p') as $ptag) {
 } 
 
 $formatted_reviews = array();
+$link_count = 0;
 foreach ($reviews as $key => $review) {
   if ($review['1'] === 'top of page') {
     break;
@@ -74,16 +75,22 @@ foreach ($reviews as $key => $review) {
   for($i = 4; $i < count($review); $i++){
     if (!strpos($review[$i], "CURRENTLY OUT OF PRINT")) {
       if(substr($review[$i], 0, 11) === "MPEG Stream"){
-        $song_title = substr($review[$i], 14);
-        $song_title = rtrim($song_title, '"');
+        $song_title = substr($review[$i], 13);
+        // $song_title = rtrim($song_title, '"');
         $formatted_reviews[$key]['audio'][$song_title] = '';
       } elseif (substr($review[$i], 0, 9) === "RealAudio") {
-        $song_title = substr($review[$i], 17);
-        $song_title = rtrim($song_title, '"');
+        $song_title = substr($review[$i], 16);
+        // $song_title = rtrim($song_title, '"');
         $formatted_reviews[$key]['audio'][$song_title] = '';
       }else {
         $formatted_reviews[$key]['body'][] = $review[$i];
       }
+
+      if(substr($review[$i], 0, 11) === "MPEG Stream" || substr($review[$i], 0, 9) === "RealAudio") {
+        $formatted_reviews[$key]['audio'][$song_title] = $links[$link_count]['url'];
+        $link_count++;
+      }
+
     }
   }
 
@@ -97,10 +104,7 @@ foreach($html->getElementsByTagName('img') as $img) {
     }
 } 
 // gets all album covers. one per album! 
-pre_print($imgs);
-pre_print('num of imgs' .  count($imgs));
-pre_print('num of reviews' .  count($formatted_reviews));
-return 'test';
+
 // figure out which album the cover was from. 
 // link audio urls to audio titles in formatted reviews table. 
 // add nodes based on table. 
