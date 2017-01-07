@@ -1,0 +1,65 @@
+<?php
+
+/**
+ * Implements hook_install().
+ */
+function file_force_install() {
+  $status = array();
+  // Set module weight for the module
+  $status[] = db_query("UPDATE {system} SET weight = 10 WHERE name = 'file_force'");
+
+  // If there is one FALSE value in the status array, there was an error.
+  if (array_search(FALSE, $status) !== FALSE) {
+    drupal_set_message(t('Setting the module weight of File Force Download failed.'), 'error');
+  }
+}
+
+/**
+ * Update as many formatter information as possible to the new D7 system.
+ */
+function file_force_update_7000() {
+  // Iterate through all field instances and update those that have a formatter set by module 'file_force'
+  $entity_instances = field_info_instances();
+  foreach ($entity_instances['node'] as $entity_name => $instances) {
+    foreach ($instances as $name => $instance) {
+      foreach ($instance['display'] as $view_mode => $display_settings) {
+        if ($display_settings['module'] == 'file_force') {
+          switch ($instance['display'][$view_mode]['type']) {
+            // Update the names of the file fields to the new convention
+            case 'default_ff':
+              $instance['display'][$view_mode]['type'] = 'file_force_file_default';
+              break;
+            case 'url_plain_ff':
+              $instance['display'][$view_mode]['type'] = 'file_force_file_url_plain';
+              break;
+
+            // Update the names of the image fields and set the correct settings
+            case 'image_imagelink_ff':
+              $instance['display'][$view_mode]['type'] = 'file_force_image';
+              $instance['display'][$view_mode]['settings'] = array('image_style' => '');
+              break;
+            
+            // Update the names of the old imagecache fields and set the correct settings
+            default:
+              $style = substr($instance['display'][$view_mode]['type'], 0, -13);
+              $instance['display'][$view_mode]['type'] = 'file_force_image';
+              $instance['display'][$view_mode]['settings'] = array('image_style' => $style);
+              break;
+          }
+        }
+      }
+      field_update_instance($instance);
+    }
+  }
+}
+
+/**
+ * Update module weight for D6 upgrades.
+ */
+function file_force_update_7001() {
+  $update = db_update('system')
+    ->condition('name', 'file_force')
+    ->condition('type', 'module')
+    ->fields(array('weight' => 10))
+    ->execute();
+}

@@ -1,0 +1,16 @@
+name = File Force Download
+description = "Force your visitors to download requested files."
+core = 7.x
+package = Other
+
+files[] = file_force.admin.inc
+files[] = file_force.module
+files[] = file_force.theme.inc
+files[] = file_force_formatter.inc
+
+; Information added by drupal.org packaging script on 2013-04-03
+version = "7.x-1.2"
+core = "7.x"
+project = "file_force"
+datestamp = "1364979319"
+

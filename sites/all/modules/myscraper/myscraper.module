@@ -42,7 +42,7 @@ foreach($html->getElementsByTagName('a') as $link) {
 array_pop($links);
 array_pop($links);
 // urls all have .m3u at end
-pre_print($links);
+// pre_print($links);
 $alphabet = range('a', 'z');
 $reviews = array();
 $childNodes = array();
@@ -57,6 +57,12 @@ foreach($html->getElementsByTagName('p') as $ptag) {
     // for each thing inside a review...
       if ($node->nodeValue) {
         $reviews['review' . $review_index][] = $node->nodeValue;
+      }
+    }
+
+    foreach ($ptag->getElementsByTagName('img') as $imgnode) {
+      if ($imgnode->getAttribute('alt') == 'album cover') {
+        $reviews['review' . $review_index][] = $imgnode->getAttribute('src');
       }
     }
     $review_index++;
@@ -95,14 +101,26 @@ foreach ($reviews as $key => $review) {
   }
 
 }
+
+
+foreach ($formatted_reviews as $review_index => $review) {
+  $image_link = $review['body'][count($review['body']) - 1];
+  if(substr($image_link, 0, 5) === "/web/"){
+    $formatted_reviews[$review_index]['img'] = $image_link;
+    array_pop($formatted_reviews[$review_index]['body']);
+  }
+}
+
+
+
 pre_print($formatted_reviews);
 // Each of these is a complete review. Need to parse out the title, artist, label, and each mpeg stream. 
 
-foreach($html->getElementsByTagName('img') as $img) { 
-    if ($img->getAttribute('alt') == 'album cover') {
-      $imgs[] = $img->getAttribute('src');
-    }
-} 
+// foreach($html->getElementsByTagName('img') as $img) { 
+//     if ($img->getAttribute('alt') == 'album cover') {
+//       $imgs[] = $img->getAttribute('src');
+//     }
+// } 
 // gets all album covers. one per album! 
 
 // figure out which album the cover was from. 

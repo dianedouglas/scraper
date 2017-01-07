@@ -1,0 +1,277 @@
+<?php
+
+/**
+ * @file
+ * File Force Download module.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function file_force_menu() {
+  $items = array();
+
+  $items['system/files_force'] = array(
+    'title' => 'File Force Download',
+    'page callback' => 'file_download',
+    'page arguments' => array('public'),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function file_force_theme() {
+  $theme = array();
+
+  // File field formatters
+  $theme['file_force_file_link'] = array(
+    'variables' => array('file' => NULL, 'icon_directory' => NULL),
+    'file' => 'file_force_formatter.inc',
+  );
+  $theme['file_force_file_formatter_table'] = array(
+    'variables' => array('items' => NULL),
+    'file' => 'file_force_formatter.inc',
+  );
+
+  return $theme;
+}
+
+/**
+ * Implements hook_file_download().
+ *
+ * This is what adds the headers which activates the force downloading.
+ */
+function file_force_file_download($uri) {
+  if (!isset($_GET['download'])) {
+    // Our menu hook wasn't called, so we should ignore this.
+    return FALSE;
+  }
+
+  if ($_GET['download'] == 1) {
+    $disposition = 'attachment';
+  } elseif ($_GET['download'] == 0) {
+    $disposition = 'inline';
+  } else {
+    // We only use 1 and 0.
+	  return FALSE;
+  }
+
+  $scheme = file_uri_scheme($uri);
+  if ($scheme == 'private') {
+    // Check with all other modules if the file is allowed for the download
+    $headers = array();
+    foreach (module_implements('file_download') as $module) {
+      if ($module == 'file_force') {
+        continue; // Do not call ourselves.
+      }
+      $function = $module . '_file_download';
+      $result = $function($uri);
+      if ($result == -1) {
+        // Throw away the headers received so far.
+        $headers = array();
+        break;
+      }
+      if (isset($result) && is_array($result)) {
+        $headers = array_merge($headers, $result);
+      }
+    }
+    if (!count($headers)) {
+      return FALSE;
+    }
+  }
+
+  // Attempt to give the file its original name (as stored in {file_managed}.filename), like file_file_download() does.
+  // Get the file record based on the URI. If not in the database just return.
+  $files = file_load_multiple(array(), array('uri' => $uri));
+  if (count($files)) {
+    foreach ($files as $item) {
+      // Since some database servers sometimes use a case-insensitive comparison
+      // by default, double check that the filename is an exact match.
+      if ($item->uri === $uri) {
+        $file = $item;
+        break;
+      }
+    }
+  }
+  if (isset($file)) {
+    $name = $file->filename;
+  }
+  else {
+    // Use uri for the name if file record is not found.
+    $name = basename($uri);
+  }
+
+  // Return a list of headers that will force the download
+  return array(
+    'Content-Disposition' => $disposition . '; filename="' . mime_header_encode($name) . '"',
+  );
+}
+
+/**
+ * Implements hook_field_formatter_info().
+ *
+ * Add file_force formatters to file/image fields.
+ */
+function file_force_field_formatter_info() {
+  $formatters = array();
+
+  // Handle file field files.
+  $formatters['file_force_file_default'] = array(
+    'label' => t('File Force: Generic file'),
+    'field types' => array('file'),
+  );
+  $formatters['file_force_file_table'] = array(
+    'label' => t('File Force: Table of files'),
+    'field types' => array('file'),
+  );
+  $formatters['file_force_file_url_plain'] = array(
+    'label' => t('File Force: URL to file'),
+    'field types' => array('file'),
+  );
+
+  // Handle image field files.
+  $formatters['file_force_image'] = array(
+    'label' => t('File Force: Image'),
+    'field types' => array('image'),
+    'settings' => array('image_style' => ''),
+  );
+
+  return $formatters;
+}
+
+/**
+ * Implements hook_field_formatter_view().
+ */
+function file_force_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
+  $element = array();
+  $separator = variable_get('clean_url', FALSE) ? '?' : '&';
+
+  switch ($display['type']) {
+    case 'file_force_file_default':
+      foreach ($items as $delta => $item) {
+        $element[$delta] = array(
+          '#theme' => 'file_force_file_link',
+          '#file' => (object) $item,
+        );
+      }
+      break;
+
+    case 'file_force_file_url_plain':
+      foreach ($items as $delta => $item) {
+        $element[$delta] = array('#markup' => file_force_create_url($item['uri']));
+      }
+      break;
+
+    case 'file_force_file_table':
+      if (!empty($items)) {
+        // Display all values in a single element..
+        $element[0] = array(
+          '#theme' => 'file_force_file_formatter_table',
+          '#items' => $items,
+        );
+        break;
+      }
+
+    case 'file_force_image':
+      $element = array();
+
+      foreach ($items as $delta => $item) {
+        $uri = array(
+          'path' => file_force_create_url($item['uri'], FALSE),
+          'options' => array('query' => array('download' => '1')),
+        );
+        $element[$delta] = array(
+          '#theme' => 'image_formatter',
+          '#item' => $item,
+          '#image_style' => $display['settings']['image_style'],
+          '#path' => $uri,
+        );
+      }
+      break;
+  }
+
+  return $element;
+}
+
+/**
+ * Implements hook_field_formatter_settings_form().
+ */
+function file_force_field_formatter_settings_form($field, $instance, $view_mode, $form, &$form_state) {
+  $display = $instance['display'][$view_mode];
+  if ($display['type'] == 'file_force_image') {
+    $settings = $display['settings'];
+
+    $image_styles = image_style_options(FALSE);
+    $element['image_style'] = array(
+      '#title' => t('Image style'),
+      '#type' => 'select',
+      '#default_value' => $settings['image_style'],
+      '#empty_option' => t('None (original image)'),
+      '#options' => $image_styles,
+    );
+
+    return $element;
+  }
+}
+
+/**
+ * Implements hook_field_formatter_settings_summary().
+ */
+function file_force_field_formatter_settings_summary($field, $instance, $view_mode) {
+  $display = $instance['display'][$view_mode];
+  if ($display['type'] == 'file_force_image') {
+    $settings = $display['settings'];
+
+    $summary = array();
+
+    $image_styles = image_style_options(FALSE);
+    // Unset possible 'No defined styles' option.
+    unset($image_styles['']);
+    // Styles could be lost because of enabled/disabled modules that defines
+    // their styles in code.
+    if (isset($image_styles[$settings['image_style']])) {
+      $summary[] = t('Image style: @style', array('@style' => $image_styles[$settings['image_style']]));
+    }
+    else {
+      $summary[] = t('Original image');
+    }
+
+    $summary[] = t('Linked to file');
+
+    return implode('<br />', $summary);
+  }
+}
+
+/**
+ * Simplified version of the default file_create_url method to avoid private download method dependency.
+ *
+ * @param $path
+ *   String, file uri
+ * @param $add_query
+ *   Boolean, add a query (pass FALSE if url will be appended with download=1 query)
+ * @return
+ *   String, file url
+ */
+function file_force_create_url($path, $add_query = TRUE) {
+  if (empty($path)) {
+    return '';
+  }
+  $scheme = file_uri_scheme($path);
+  if ($scheme == 'public') {
+    $url = file_create_url('system/files_force/' . file_uri_target($path));
+  }
+  else {
+    $url = file_create_url($path);
+  }
+  if ($add_query) {
+    // '&' for private uploads in non-clean URLs. Public downloads or clean URLs need '?' as there is no query.
+    $separator = (variable_get('clean_url', FALSE) || ($scheme == 'public')) ? '?' : '&';
+    $url .= $separator . 'download=1';
+  }
+  return $url;
+}
