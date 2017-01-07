@@ -115,26 +115,21 @@ foreach ($formatted_reviews as $review_index => $review) {
 
 pre_print($formatted_reviews);
 
-$node = new StdClass();
-$node->type = 'review';
-$node->status = 1;
-$node->title = "Step up to the FLava";
-$node->body = "Body Body body";
-node_save($node);
+foreach ($formatted_reviews as $review) {
+  $node = new StdClass();
+  $node->type = 'review';
+  $node->status = 1;
+  $node->title = $review['title'];
+  $node->field_artist = $review['artist'];
+  $node->field_label_info = $review['labelinfo'];
+  foreach ($formatted_reviews[$key]['body'] as $paragraph) {
+    $node->field_review_body[] = $paragraph;
+  }
+  node_save($node);
+}
 
 
-// Each of these is a complete review. Need to parse out the title, artist, label, and each mpeg stream. 
 
-// foreach($html->getElementsByTagName('img') as $img) { 
-//     if ($img->getAttribute('alt') == 'album cover') {
-//       $imgs[] = $img->getAttribute('src');
-//     }
-// } 
-// gets all album covers. one per album! 
-
-// figure out which album the cover was from. 
-// link audio urls to audio titles in formatted reviews table. 
-// add nodes based on table. 
 // loop through all pages.
 }
 
