@@ -131,11 +131,11 @@ foreach ($formatted_reviews as $key => $review) {
   }
   $node->field_artist[$node->language][0]['value'] = $review['artist'];
   $node->field_label_info[$node->language][0]['value'] = $review['labelinfo'];
-  $node->field_album_art[$node->language][0] = array('url' => 'https://'. $review['img'], 'title' => 'album_art');
+  $node->field_album_art[$node->language][0] = array('url' => 'https://web.archive.org'. $review['img'], 'title' => 'album_art');
   $node->field_review_body[$node->language][0]['value'] = $body_text;
 
   foreach ($review['audio'] as $title => $url) {
-    $link_array = array('url' => 'http://'.$url, 'title' => $title);
+    $link_array = array('url' => 'https://web.archive.org'.$url, 'title' => $title);
     $node->field_audio_links[$node->language][] = $link_array;
   }
 
