@@ -149,19 +149,6 @@ foreach ($formatted_reviews as $key => $review) {
 // loop through all pages.
 }
 
-// function myscraper_node_view($node, $view_mode, $langcode) {
-//   pre_print($node);
-// }
-
-function simple_get_xml($url) {
-  $html = new DOMDocument();
-  // fetch drupal planet and parse it (@ suppresses warnings).
-  @$html->loadHTMLFile($url);
-  // convert DOM to SimpleXML
-  $xml = simplexml_import_dom($html);
-  return $xml;
-}
-
 function pre_print($input) {
   print '<pre>';
   print_r($input);
