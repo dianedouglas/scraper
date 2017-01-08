@@ -113,25 +113,45 @@ foreach ($formatted_reviews as $review_index => $review) {
 
 
 
-pre_print($formatted_reviews);
+// pre_print($formatted_reviews);
 
-foreach ($formatted_reviews as $review) {
+foreach ($formatted_reviews as $key => $review) {
   $node = new StdClass();
   $node->type = 'review';
+  node_object_prepare($node);
   $node->status = 1;
   $node->title = $review['title'];
-  $node->field_artist = $review['artist'];
-  $node->field_label_info = $review['labelinfo'];
-  foreach ($formatted_reviews[$key]['body'] as $paragraph) {
-    $node->field_review_body[] = $paragraph;
+  // $node->content['field_artist'] = $review['artist'];
+  // $node->content['field_label_info'] = $review['labelinfo'];
+  $node->language = LANGUAGE_NONE;
+
+  $body_text = '';
+  foreach ($review['body'] as $paragraph) {
+    $body_text .= $paragraph;
   }
+  $node->field_artist[$node->language][0]['value'] = $review['artist'];
+  $node->field_label_info[$node->language][0]['value'] = $review['labelinfo'];
+  $node->field_album_art[$node->language][0] = array('url' => 'https://'. $review['img'], 'title' => 'album_art');
+  $node->field_review_body[$node->language][0]['value'] = $body_text;
+
+  foreach ($review['audio'] as $title => $url) {
+    $link_array = array('url' => 'http://'.$url, 'title' => $title);
+    $node->field_audio_links[$node->language][] = $link_array;
+  }
+
+  $node->path = array('alias' => $key);
+  $node = node_submit($node); 
   node_save($node);
+  // pre_print($node);
+  return 'x';
 }
-
-
 
 // loop through all pages.
 }
+
+// function myscraper_node_view($node, $view_mode, $langcode) {
+//   pre_print($node);
+// }
 
 function simple_get_xml($url) {
   $html = new DOMDocument();
