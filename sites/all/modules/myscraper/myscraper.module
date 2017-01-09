@@ -4,6 +4,8 @@
 *
 */
 function myscraper_menu() {
+  // When you visit this URL, all pages on AQ will be queried and stored. 
+  // After the scrape, disable module for safety to avoid duplicates.
   $items['scrape'] = array(
     'title' => t('Aquarius Records Reviews'),
     'page callback' => 'scrape',
@@ -37,7 +39,7 @@ function scrape() {
     }
   }
 
-  // redefine for testing:
+  // redefine to single url for testing:
   $final_list_urls = ['https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/a7.html'];
 
   foreach ($final_list_urls as $query) {
