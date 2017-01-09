@@ -37,8 +37,7 @@ function scrape() {
     }
   }
 
-  pre_print($final_list_urls);
-  // redefine for testing: 
+  // redefine for testing:
   $final_list_urls = ['https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/a7.html'];
 
   foreach ($final_list_urls as $query) {
@@ -68,11 +67,8 @@ function getPagesForLetter($url) {
 }
 
 function scraper($url) {
-  // Get all records that begin with the letter in a category.
-
-
+  // Get all records on one page.
   $html = new DOMDocument();
-  // $url = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/f38.html';
   @$html->loadHTMLFile($url);
 
 
@@ -93,30 +89,80 @@ function scraper($url) {
   }
   array_pop($links);
   array_pop($links);
+  // pre_print($links);
+  // Now $links holds a flat array of all links.
+  // $links[0] => Array
+  // (
+  //     [url] => /web/20150322130420/http://aquariusrecords.org/audio/amtinotoinfino.m3u
+  //     [text] => "In O"
+  // )
 
-  $reviews = array();
-  $count = 0;
-  $review_index = 0;
+  $reviews = array(); //hold raw review data.
+  $count = 0; // need this because reviews are stored as paragraph tags. But not the first 4.
+  $review_index = 0; // we'll use this to number the reviews as we store them in the $reviews array.
+
   foreach($html->getElementsByTagName('p') as $ptag) { 
     $count++;
     if ($count > 4) {
-
+      // at this point this is ONE ALBUM REVIEW.
       foreach ($ptag->childNodes as $node) {
       // for each thing inside a review...
-        if ($node->nodeValue) {
+        if ($node->nodeValue) { 
+          // store all paragraphs as a review. Includes variable amounts of data. 
+          // always includes artist, title, label info.
+          // could include: review body paragraphs, song titles, and extra data such as messages like 'out of print' that we don't want to save in the database. Store it all for now. 
+          // $formatted_reviews will parse this.
           $reviews['review' . $review_index][] = $node->nodeValue;
         }
       }
 
+      // Now get all image tags to find album art for current album.
       foreach ($ptag->getElementsByTagName('img') as $imgnode) {
+        // make sure the img tag you're storing is the album cover. 
+        // raw HTML uses a blank 'dot.gif' image as spacer that we don't want to store. 
+        // also, not all albums have album art stored. When you find one store it in the review under 'img'
         if ($imgnode->getAttribute('alt') == 'album cover') {
-          $reviews['review' . $review_index][] = $imgnode->getAttribute('src');
+          $reviews['review' . $review_index]['img'] = $imgnode->getAttribute('src');
         }
       }
       $review_index++;
     }
   } 
 
+  // pre_print($reviews);
+  // Each entry in $reviews holds an array of paragraph data with variable length including the album art:
+  /*
+[review0] => Array
+    (
+        [0] => 
+
+
+        [1] => ACID MOTHERS TEMPLE & THE MELTING PARAISO U.F.O.
+        [2] => In O To Infinity
+        [3] => (Important) cd 14.98
+        [4] => THIS IS CURRENTLY OUT OF PRINT OR OTHERWISE UNAVAILABLE TO US AT THE MOMENT, SO PLEASE DO NOT ORDER IT. SORRY.
+        [5] => It's really hard to keep up with these guys. We love pretty much everything they do...
+        [6] => In O To Infinity marks two milestones of sorts for the bands, and for fans, ...
+        [7] => And as much as we love all the different facets of AMT, this might be our favorite, ...
+          // audio links
+        [11] => MPEG Stream: "In O"
+        [12] => 
+
+        [13] => MPEG Stream: "In A"
+        [14] => 
+          // album art
+        [img] => /web/20150322130420im_/http://aquariusrecords.org/images/amtinotocd.jpg
+    )
+
+  */
+
+
+
+  $formatted_reviews = format_reviews_for_saving($reviews);
+  save_reviews_as_nodes($formatted_reviews);
+}
+
+function format_reviews_for_saving($reviews) {
   $formatted_reviews = array();
   $link_count = 0;
   foreach ($reviews as $key => $review) {
@@ -128,6 +174,7 @@ function scraper($url) {
     $formatted_reviews[$key]['artist'] = $review['1'];
     $formatted_reviews[$key]['title'] = $review['2'];
     $formatted_reviews[$key]['labelinfo'] = $review['3'];
+    $formatted_reviews[$key]['img'] = $review['img'];
 
     for($i = 4; $i < count($review); $i++){
       
@@ -154,16 +201,7 @@ function scraper($url) {
 
   }
 
-  foreach ($formatted_reviews as $review_index => $review) {
-    $image_link = $review['body'][count($review['body']) - 1];
-    if(substr($image_link, 0, 5) === "/web/"){
-      $formatted_reviews[$review_index]['img'] = $image_link;
-      array_pop($formatted_reviews[$review_index]['body']);
-    }
-  }
-
-  pre_print($formatted_reviews);
-  save_reviews_as_nodes($formatted_reviews);
+  return $formatted_reviews;
 }
 
 function save_reviews_as_nodes($formatted_reviews) {
@@ -173,8 +211,6 @@ function save_reviews_as_nodes($formatted_reviews) {
     node_object_prepare($node);
     $node->status = 1;
     $node->title = $review['title'];
-    // $node->content['field_artist'] = $review['artist'];
-    // $node->content['field_label_info'] = $review['labelinfo'];
     $node->language = LANGUAGE_NONE;
 
     $body_text = '';
