@@ -1,0 +1,11 @@
+name = Favorites
+description = Allows users to add paths on a site to their list of favorites.
+core = 7.x
+files[] = favorites.module
+
+; Information added by Drupal.org packaging script on 2015-11-05
+version = "7.x-2.1"
+core = "7.x"
+project = "favorites"
+datestamp = "1446761671"
+

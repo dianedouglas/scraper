@@ -1,0 +1,714 @@
+<?php
+
+/**
+ * @file
+ * The favorites module allows users to bookmark any path within a site.
+ */
+
+/**
+ * Implements hook_init().
+ */
+function favorites_init() {
+  drupal_add_library('system', 'ui.sortable');
+}
+
+/**
+ * Implements hook_permission().
+ */
+function favorites_permission() {
+  return array(
+    'manage own favorites' => array(
+      'title' => t('Manage own favorites'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_menu().
+ */
+function favorites_menu() {
+  $items['favorites/remove/%favorite'] = array(
+    'page callback' => 'favorites_remove_favorite',
+    'page arguments' => array(2),
+    'access arguments' => array('manage own favorites'),
+    'title' => 'Remove Favorite',
+    'type' => MENU_CALLBACK,
+  );
+  $items['favorites/js/add'] = array(
+    'page callback' => 'favorites_add_favorite_js',
+    'access arguments' => array('manage own favorites'),
+    'title' => 'Add favorite via js',
+    'type' => MENU_CALLBACK,
+  );
+  $items['favorites/js/order/%/%'] = array(
+    'page callback' => 'favorites_order_callback',
+    'page arguments' => array(3, 4),
+    'access arguments' => array('manage own favorites'),
+    'title' => 'Reorg favorite via js',
+    'type' => MENU_CALLBACK,
+  );
+  return $items;
+}
+
+/**
+ * Helper function to load a favorite.
+ *
+ * @param int $fid
+ *   The DB ID of the favorite
+ *
+ * @return object
+ *   The DB row from the favorites table.
+ */
+function favorite_load($fid) {
+  global $user;
+  if (strpos($fid, 'c_') !== 0) {
+    return _favorites_load_favorite_db($fid);
+  }
+  else {
+    return _favorites_load_favorite_cookie($fid);
+  }
+}
+
+/**
+ * Implements hook_theme().
+ */
+function favorites_theme() {
+  return array(
+    'favorites' => array(
+      'variables' => array(
+        'favorites' => array(),
+      ),
+    ),
+  );
+}
+
+/**
+ * Deletes a favorite.
+ *
+ * @param $favorite
+ *   The loaded favorite object.
+ */
+function favorites_remove_favorite($favorite) {
+
+  global $user;
+  $access = (user_access('manage own favorites') && $user->uid == $favorite->uid); // no admin page implemented yet! || user_access('manage all favorites');
+  if (
+    $access
+    &&
+    drupal_valid_token($_GET['token'], $favorite->timestamp . $favorite->uid . $favorite->path)
+  ) {
+    _favorites_delete($favorite);
+    if (!empty($_GET['js'])) {
+      drupal_json_output(array('list' => favorites_list()));
+      return;
+    }
+  }
+  else {
+    drupal_set_message(
+      t('You do not have permission to remove this favorite.'),
+      'error'
+    );
+  }
+  // Unless this is an AJAX request, the query string contains the redirection page.
+  if (empty($_GET['js'])) {
+    drupal_goto();
+  }
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function favorites_block_info() {
+  $blocks[0]['info'] = t('User Favorites block');
+  $blocks[0]['cache'] = DRUPAL_NO_CACHE;
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function favorites_block_view($delta = 0) {
+  if ($delta == 0 && user_access('manage own favorites')) {
+
+    // Add Ajax support.
+    drupal_add_js(drupal_get_path('module', 'favorites') . '/favorites.js');
+
+    // Create the block content.
+    // @todo: Return a render array instead.
+    $form_id = drupal_get_form('favorites_add_favorite_form');
+    $output = '<div id="favorites-list">' . favorites_list() . '</div>'
+      . drupal_render($form_id)
+    ;
+    return array(
+      'subject' => t('My Favorites'),
+      'content' => $output,
+    );
+  }
+}
+
+/**
+ * Generate the "My Favorites" list.
+ *
+ * @return string
+ *   Rendered favorites list.
+ */
+function favorites_list() {
+  global $user;
+  $favorites = favorites_load_favorites($user);
+  return theme('favorites', array('favorites' => $favorites));
+}
+
+/**
+ * Theme callback.
+ *
+ * Return a themed item list of favorites with title, link and link to delete.
+ */
+function theme_favorites($favorites = array()) {
+  $items = array();
+  $destination = drupal_get_destination();
+  $destination = explode('=', $destination['destination'], 2);
+  foreach ($favorites['favorites'] as $favorite) {
+    $items[] = l(
+      $favorite->title,
+      $favorite->path,
+      array('query' => unserialize($favorite->query))
+    ) . ' ' . l(
+      'x',
+      'favorites/remove/' . $favorite->fid,
+      array(
+        'query' => array(
+          'token' => $favorite->token,
+          'destination' => $destination[0],
+        ),
+        'attributes' => array(
+          'class' => array('favorites-remove'),
+          'title' => t('delete this item'),
+          'fid' => $favorite->fid,
+        ),
+      )
+    );
+  }
+  return theme('item_list', array('items' => $items, 'type' => 'ul'));
+}
+
+/**
+ * Add a favorite.
+ *
+ * @param $values
+ *   A keyed array submitted by the favorites form with the following elements:
+ *   - 'path' => The page path of the URL.
+ *   - 'query' => The query part of the URL.
+ *   - 'title' => The title as entered by the user.
+ */
+function favorites_add_favorite($values) {
+
+  // Normalize the path to the drupal internal path.
+  // This helps in case the path alias changes or will be removed.
+  $values['path'] = drupal_get_normal_path($values['path']);
+
+  // Prepare the query values
+  $values['query'] = drupal_get_query_array($values['query']);
+  // Remove useless q value
+  unset($values['query']['q']);
+  $values['query'] = serialize($values['query']);
+
+  _favorites_save_favorite($values);
+}
+
+/**
+ * Form callback for the "add favorite form"
+ *
+ * @see favorites_user_block()
+ */
+function favorites_add_favorite_form($form, &$form_state) {
+  global $user;
+
+  // Try to get a default value for the title field.
+  // drupal_get_title() has run through check_plain. This is useless for us
+  // and needs to be fixed, which only works easily with PHP >= 5.1.
+  if (
+    function_exists('version_compare')
+    &&
+    version_compare(PHP_VERSION, '5.1.0', '>=')
+  ) {
+    $title = htmlspecialchars_decode(drupal_get_title());
+  }
+  if (!isset($title)) {
+    $title = menu_get_active_title();
+  }
+  if ($title == '') {
+    $title = variable_get('site_name', 'Home');
+  }
+  $title = strip_tags($title);
+
+  $path = strip_tags($_GET['q']);
+  $query = drupal_http_build_query($_GET);
+
+  // Add a collapsible container.
+  $form = array(
+    'add' => array(
+      '#type' => 'fieldset',
+      '#collapsible' => TRUE,
+      '#collapsed' => TRUE,
+      '#title' => t('add this page'),
+      'title' => array(
+        '#type' => 'textfield',
+        '#size' => 20,
+        '#maxlength' => 255,
+        '#default_value' => $title,
+        '#attributes' => array(
+          'style' => 'width: 90%',
+          'class' => array('favorites-add-textfield'),
+        ),
+      ),
+      'submit' => array(
+        '#type' => 'submit',
+        '#value' => t("Add"),
+        '#submit' => array('favorites_add_favorite_form_submit'),
+      ),
+      'path' => array(
+        '#type' => 'value',
+        '#value' => $path,
+      ),
+      'query' => array(
+        '#type' => 'value',
+        '#value' => $query,
+      ),
+    ),
+  );
+  //Preserve the current path with query string.
+  $form_state['redirect'] = array(
+    $_GET['q'],
+    array(
+      'query' => drupal_http_build_query($_GET),
+    )
+  );
+  // Additionally add path and query to the JS settings.
+  drupal_add_js(
+    array(
+      'favorites' => array(
+        'path' => $path,
+        'query' => $query,
+        'addCallbackPath' => url('favorites/js/add'),
+      ),
+    ),
+    'setting'
+  );
+
+  return $form;
+}
+
+/**
+ * Submit callback for "add favorite" form.
+ */
+function favorites_add_favorite_form_submit($form, &$form_state) {
+  favorites_add_favorite($form_state['values']);
+}
+
+/**
+ * Load the favorites for a particular user.
+ *
+ * @param $account
+ *   The user account to load the favorites for.
+ *   (Optional; defaults to the current user.)
+ */
+function favorites_load_favorites($account = NULL) {
+  if (!isset($account)) {
+    global $user;
+    $account = $user;
+  }
+  if (_favorites_user_storage_db($account)) {
+
+    // Load registered users' data from the DB.
+    $raw_data = _favorites_load_favorites_db($account);
+  }
+  else {
+
+    // Load anonymous users' data from their cookies.
+    $raw_data = _favorites_load_favorites_cookie();
+
+  }
+
+  // Initialize result array.
+  $favorites = array();
+
+  // Process favorites.
+  foreach ($raw_data as $favorite) {
+    $favorite->token = favorites_token($favorite);
+    $favorite->path = drupal_get_path_alias($favorite->path);
+    $favorite->weight = $favorite->weight;
+    $favorites[] = $favorite;
+  }
+
+  return $favorites;
+}
+
+/**
+ * Update favorites order weight.
+ *
+ * @param $fid
+ *   A favorite object.
+ * @param $weight
+ *   A new favorite weight.
+ */
+function favorites_order_callback($fid = NULL, $weight = NULL) {
+  if(!empty($fid) && !empty($weight)) {
+    db_update('favorites')
+      ->fields(array('weight' => $weight,))
+      ->condition('fid', $fid)
+      ->execute();
+      echo $fid;
+      echo ':';
+      echo $weight;
+    drupal_json_output(array('success' => TRUE));
+    return;
+  }
+  drupal_json_output(array('success' => FALSE, 'error' => TRUE));
+}
+
+/**
+ * Generate a token for a particular favorite.
+ *
+ * @param $favorite
+ *   A favorite object.
+ *
+ * @return string
+ *   A token string.
+ */
+function favorites_token($favorite) {
+  return drupal_get_token($favorite->timestamp . $favorite->uid . $favorite->path);
+}
+
+/**
+ * AHAH callback for add favorites form.
+ *
+ * @see favorites_add_favorite_form()
+ */
+function favorites_add_favorite_js() {
+  favorites_add_favorite($_POST);
+  drupal_json_output(
+    array(
+      'list' => favorites_list(),
+    )
+  );
+}
+
+/**
+ * Helper function: Determine the current account's storage model.
+ *
+ * Used to abstract storage (cookie vs. db). Currently only
+ * distinguishes between anonymous and registered users,
+ * but may be extended for future features.
+ *
+ * @param $account
+ *   Account in question. Optional; defaults to the current user.
+ *
+ * @return bool
+ *   TRUE, if the user's favorites may be stored in the database
+ */
+function _favorites_user_storage_db($account = NULL) {
+  if (!isset($account)) {
+    global $user;
+    $account = $user;
+  }
+  return $account->uid > 0;
+}
+
+/**
+ * Helper function: Store favorites for registered users.
+ *
+ * Used to abstract the storage model (cookie vs. db).
+ *
+ * @param $values
+ *   The sanitized values submitted by the user.
+ * @param $account
+ *   The user account the favorite belongs to.
+ *   Must be a registered user (uid > 0);
+ *   no validation is made here.
+ *
+ * @see favorites_add_favorite().
+ * @see _favorites_save_favorite_db().
+ * @see _favorites_save_favorite_cookie().
+ */
+function _favorites_save_favorite($values, $account = NULL) {
+  if (!isset($account)) {
+    global $user;
+    $account = $user;
+  }
+  if (_favorites_user_storage_db($account)) {
+    _favorites_save_favorite_db($values, $account);
+  }
+  else {
+    _favorites_save_favorite_cookie($values);
+  }
+}
+
+/**
+ * Helper function: Store a favorite to the DB.
+ *
+ * Used to abstract the storage model (cookie vs. db).
+ *
+ * @param $values
+ *   The sanitized values submitted by the user.
+ * @param $account
+ *   The user account the favorite belongs to.
+ *   Must be a registered user (uid > 0);
+ *   no validation is made here.
+ *
+ * @see favorites_add_favorite().
+ */
+function _favorites_save_favorite_db($values, $account) {
+
+  // Delete an existing entry with the same link to avoid duplicates.
+  // Workaround for missing "ON UPDATE INSERT" Drupal implementation.
+  db_delete('favorites')
+    ->condition('uid', $account->uid, '=')
+    ->condition('path', $values['path'], '=')
+    ->condition('query', $values['query'])
+    ->execute()
+  ;
+
+  db_insert('favorites')
+    ->fields(array(
+      'uid' => $account->uid,
+      'path' => $values['path'],
+      'query' => $values['query'],
+      'title' => $values['title'],
+      'timestamp' => REQUEST_TIME,
+      'weight' => get_item_weight(),
+    ))
+    ->execute()
+  ;
+}
+
+/**
+ * Get item weight.
+ *
+ * @return int
+ *   The new weight for the item.
+ */
+function get_item_weight() {
+  $weight = db_query('SELECT MAX(weight) FROM {favorites} LIMIT 1')->fetchField();
+  return ++$weight;
+}
+
+/**
+ * Helper function: Store a favorite as a cookie.
+ *
+ * Used to abstract the storage model (cookie vs. db).
+ *
+ * @param $values
+ *   The sanitized values submitted by the user.
+ *
+ * @see favorites_add_favorite().
+ */
+function _favorites_save_favorite_cookie($values) {
+  // We need a unique ID for the cookie. In the DB storage,
+  // the DB takes care of this with an auto increment value.
+  // This is too much overhead in cookie storage, so
+  // we will use an md5 hash as a unique ID.
+  // The hash will be prefixed so on delete operations it is absolutely
+  // clear whether to delete a cookie or a DB entry.
+  $fid = 'c_' . md5($values['path'] . drupal_http_build_query(unserialize($values['query'])));
+  $cookie_id = 'favorites_' . $fid;
+  $cookie_data = serialize(array(
+    'path' => $values['path'],
+    'query' => $values['query'],
+    'title' => $values['title'],
+    'timestamp' => REQUEST_TIME,
+  ));
+  user_cookie_save(array($cookie_id => $cookie_data));
+  $_COOKIE['Drupal_visitor_' . $cookie_id] = $cookie_data;
+}
+
+/**
+ * Helper function: Load an account's favorites from the DB.
+ *
+ * Used to abstract the storage model (cookie vs. db).
+ *
+ * @param $account
+ *   The user account object to load the favorites for.
+ *
+ * @return array
+ *   An array with DB result rows (favorite objects), if any.
+ *
+ * @see favorites_load_favorites().
+ */
+function _favorites_load_favorites_db($account) {
+  return db_select('favorites', 'f')
+    ->fields('f')
+    ->condition('uid', $account->uid, '=')
+    ->orderBy('weight', 'ASC')
+    ->orderBy('timestamp', 'DESC')
+    ->execute()
+  ;
+}
+
+/**
+ * Helper function: Load favorites from the user's cookies.
+ *
+ * Used to abstract the storage model (cookie vs. db).
+ *
+ * @return array
+ *   An array with all favorites as objects, if any.
+ *
+ * @see favorites_load_favorites().
+ */
+function _favorites_load_favorites_cookie() {
+
+  global $user;
+
+  $ret = array();
+  if (!empty($_COOKIE)) {
+    foreach ($_COOKIE as $id => $cookie) {
+      if (preg_match('/^Drupal_visitor_favorites_(.+)$/', $id, $match)) {
+        $ret[] = _favorites_parse_cookie($match[1], $cookie);
+      }
+    }
+  }
+  return $ret;
+}
+
+/**
+ * Helper function: Load a single favorite from the DB.
+ *
+ * Used to abstract the storage model (cookie vs. db).
+ *
+ * @param $fid
+ *   The favorite's DB ID.
+ *
+ * @return object|bool
+ *   The favorite, if found in the DB. Otherwise FALSE.
+ *
+ * @see favorite_load().
+ */
+function _favorites_load_favorite_db($fid) {
+  return db_select('favorites', 'f')
+    ->fields('f')
+    ->condition('fid', $fid, '=')
+    ->execute()
+    ->fetchObject()
+  ;
+}
+
+/**
+ * Helper function: Load a single favorite from the user's cookies.
+ *
+ * Used to abstract the storage model (cookie vs. db).
+ *
+ * @param $fid
+ *   The favorite's ID.
+ *
+ * @return object|bool
+ *   The favorite, if found in the DB. Otherwise FALSE.
+ *
+ * @see favorite_load().
+ */
+function _favorites_load_favorite_cookie($fid) {
+
+  $cookie_id = 'Drupal_visitor_favorites_' . $fid;
+  if (!empty($_COOKIE[$cookie_id])) {
+    return _favorites_parse_cookie($fid, $_COOKIE[$cookie_id]);
+  }
+  else {
+    return FALSE;
+  }
+}
+
+/**
+ * Helper function: Delete a single favorite.
+ *
+ * Used to abstract the storage model (cookie vs. db).
+ *
+ * @param $favorite
+ *   The favorite object.
+ *
+ * @return bool
+ *   The deletion success.
+ *
+ * @see favorites_remove_favorite().
+ */
+function _favorites_delete($favorite) {
+
+  if (strpos($favorite->fid, 'c_') !== 0) {
+    // No cookie.
+    return _favorites_delete_db($favorite);
+  }
+  else {
+    return _favorites_delete_cookie($favorite);
+  }
+}
+
+/**
+ * Helper function: Delete a single favorite from the DB.
+ *
+ * Used to abstract the storage model (cookie vs. db).
+ *
+ * @param $favorite
+ *   The favorite object.
+ *
+ * @return bool
+ *   The deletion success.
+ *
+ * @see _favorites_delete().
+ */
+function _favorites_delete_db($favorite) {
+
+  return db_delete('favorites')
+    ->condition('fid', $favorite->fid, '=')
+    ->execute()
+  ;
+}
+
+/**
+ * Helper function: Delete a single favorite from the user's cookies.
+ *
+ * Used to abstract the storage model (cookie vs. db).
+ *
+ * @param $favorite
+ *   The favorite object.
+ *
+ * @return bool
+ *   The deletion success.
+ *
+ * @see _favorites_delete().
+ */
+function _favorites_delete_cookie($favorite) {
+  $cookie_id = 'Drupal_visitor_favorites_' . $favorite->fid;
+  if (isset($_COOKIE[$cookie_id])) {
+    // We must unset this cookie immediately so it will not have
+    // further effects for the current request.
+    user_cookie_delete('favorites_' . $favorite->fid);
+    unset($_COOKIE[$cookie_id]);
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * Helper function: Builds a favorite object from a user cookie.
+ *
+ * Used to abstract the storage model (cookie vs. db).
+ *
+ * @param $fid
+ *   The unique favorite ID for this cookie.
+ * @param $data
+ *   The data as stored in the cookie.
+ *
+ * @return array|bool
+ *   The requested favorite, if found. Otherwise FALSE.
+ */
+function _favorites_parse_cookie($fid, $data) {
+  global $user;
+
+  $favorite = new stdClass();
+  $favorite->fid = $fid;
+  // Cookie storage is always for the current user.
+  $favorite->uid = $user->uid;
+
+  $data = unserialize($data);
+  foreach ($data as $k => $v) {
+    $favorite->$k = $v;
+  }
+  return $favorite;
+}

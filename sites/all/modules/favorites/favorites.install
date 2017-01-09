@@ -1,0 +1,80 @@
+<?php
+
+/**
+ * @file
+ *  Install, update and uninstall functions for the Favorites module.
+ */
+
+/**
+ * Implementats hook_schema().
+ */
+function favorites_schema() {
+  $schema = array();
+  $schema['favorites'] = array(
+    'description' => "Stores each user's favorite path.",
+    'fields' => array(
+      'fid' => array(
+        'description' => 'The unique ID of the favoite',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'uid' => array(
+        'description' => 'The user ID of the user who owns the favorite.',
+        'type' => 'int',
+        'size' => 'normal',
+        'not null' => TRUE,
+      ),
+      'path' => array(
+        'description' => 'The favorited path',
+        'type' => 'varchar',
+        'length' => 1024,
+        'not null' => TRUE,
+      ),
+      'title' => array(
+        'description' => 'The title of the favorite',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'query' => array(
+        'description' => "The query parameters for the saved path.",
+        'type' => 'varchar',
+        'length' => 1024,
+        'not null' => TRUE,
+      ),
+      'timestamp' => array(
+        'description' => "The time the favorite was created",
+        'type' => 'int',
+        'size' => 'normal',
+        'not null' => TRUE,
+      ),
+      'weight' => array(
+        'description' => 'The weight of the favorite',
+        'type' => 'int',
+        'size' => 'normal',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('fid'),
+    'indexes' => array('uid' => array('uid')),
+  );
+  return $schema;
+}
+
+/**
+ * Add a weight property for each favorite.
+ */
+function favorites_update_7001(&$sandbox) {
+  // Add the schema.
+  $weight = array(
+    'description' => 'The weight of the favorite',
+    'type' => 'int',
+    'size' => 'normal',
+    'not null' => TRUE,
+    'default' => 0,
+  );
+  db_add_field('favorites', 'weight', $weight);
+}
+
