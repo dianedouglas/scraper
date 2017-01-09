@@ -4,149 +4,197 @@
 *
 */
 function myscraper_menu() {
-  $items['simplexml'] = array(
+  $items['scrape'] = array(
     'title' => t('Aquarius Records Reviews'),
-    'page callback' => 'scraper',
+    'page callback' => 'scrape',
     'access arguments' => array('access content'),
     'type' => MENU_NORMAL_ITEM
   );
   return $items;
 }
 
-function scraper() {
-// Get all records that begin with the letter A.
+function scrape() {
 
-
-$html = new DOMDocument();
-$url = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/f2.html';
-@$html->loadHTMLFile($url);
-// pre_print($html);
-
-
-// Empty array to hold all links to return 
-$links = array(); 
-$ptags = array(); 
-$imgs = array(); 
-
-//Loop through each <a> tag in the dom and add it to the link array 
-$count = 0;
-foreach($html->getElementsByTagName('a') as $link) { 
-  if ($count > 116) {
-    $links[] = array('url' => $link->getAttribute('href'), 'text' => $link->nodeValue); 
+  // get array of urls to query. 
+  $url_queries = array();
+  // go through each letter in the alphabet and figure out how many pages on each letter.
+  $alphabet = range('a', 'z');
+  $alphabet[] = 'other';
+  // base path for every page.
+  $base_path = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/';
+  
+  foreach ($alphabet as $letter) {
+    $current_url = $base_path . $letter . '.html';
+    $total = getPagesForLetter($current_url);
+    $url_queries[$letter] = $total; 
   }
-  if ($link->nodeValue === '1') {
-    break;
-  }
-  $count++;
-}
-array_pop($links);
-array_pop($links);
-// urls all have .m3u at end
-// pre_print($links);
-$alphabet = range('a', 'z');
-$reviews = array();
-$childNodes = array();
-$count = 0;
-$review_index = 0;
-foreach($html->getElementsByTagName('p') as $ptag) { 
-  $count++;
-  if ($count > 4) {
-    // $ptags[] = $ptag->nodeValue;
 
-    foreach ($ptag->childNodes as $node) {
-    // for each thing inside a review...
-      if ($node->nodeValue) {
-        $reviews['review' . $review_index][] = $node->nodeValue;
-      }
-    }
-
-    foreach ($ptag->getElementsByTagName('img') as $imgnode) {
-      if ($imgnode->getAttribute('alt') == 'album cover') {
-        $reviews['review' . $review_index][] = $imgnode->getAttribute('src');
-      }
-    }
-    $review_index++;
-  }
-} 
-
-$formatted_reviews = array();
-$link_count = 0;
-foreach ($reviews as $key => $review) {
-  if ($review['1'] === 'top of page') {
-    break;
-  }
-  $formatted_reviews[$key]['artist'] = $review['1'];
-  $formatted_reviews[$key]['title'] = $review['2'];
-  $formatted_reviews[$key]['labelinfo'] = $review['3'];
-  for($i = 4; $i < count($review); $i++){
-    if (!strpos($review[$i], "CURRENTLY OUT OF PRINT")) {
-      if(substr($review[$i], 0, 11) === "MPEG Stream"){
-        $song_title = substr($review[$i], 13);
-        // $song_title = rtrim($song_title, '"');
-        $formatted_reviews[$key]['audio'][$song_title] = '';
-      } elseif (substr($review[$i], 0, 9) === "RealAudio") {
-        $song_title = substr($review[$i], 16);
-        // $song_title = rtrim($song_title, '"');
-        $formatted_reviews[$key]['audio'][$song_title] = '';
-      }else {
-        $formatted_reviews[$key]['body'][] = $review[$i];
-      }
-
-      if(substr($review[$i], 0, 11) === "MPEG Stream" || substr($review[$i], 0, 9) === "RealAudio") {
-        $formatted_reviews[$key]['audio'][$song_title] = $links[$link_count]['url'];
-        $link_count++;
-      }
-
+  $final_list_urls = [];
+  foreach ($url_queries as $letter => $total_pages) {
+    $final_list_urls[] = $base_path . $letter . '.html';
+    for ($i=2; $i <=$total_pages ; $i++) { 
+      $final_list_urls[] = $base_path . $letter . $i . '.html';
     }
   }
 
-}
+  pre_print($final_list_urls);
+  // redefine for testing: 
+  $final_list_urls = ['https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/a7.html'];
 
-
-foreach ($formatted_reviews as $review_index => $review) {
-  $image_link = $review['body'][count($review['body']) - 1];
-  if(substr($image_link, 0, 5) === "/web/"){
-    $formatted_reviews[$review_index]['img'] = $image_link;
-    array_pop($formatted_reviews[$review_index]['body']);
-  }
-}
-
-
-
-// pre_print($formatted_reviews);
-
-foreach ($formatted_reviews as $key => $review) {
-  $node = new StdClass();
-  $node->type = 'review';
-  node_object_prepare($node);
-  $node->status = 1;
-  $node->title = $review['title'];
-  // $node->content['field_artist'] = $review['artist'];
-  // $node->content['field_label_info'] = $review['labelinfo'];
-  $node->language = LANGUAGE_NONE;
-
-  $body_text = '';
-  foreach ($review['body'] as $paragraph) {
-    $body_text .= $paragraph;
-  }
-  $node->field_artist[$node->language][0]['value'] = $review['artist'];
-  $node->field_label_info[$node->language][0]['value'] = $review['labelinfo'];
-  $node->field_album_art[$node->language][0] = array('url' => 'https://web.archive.org'. $review['img'], 'title' => 'album_art');
-  $node->field_review_body[$node->language][0]['value'] = $body_text;
-
-  foreach ($review['audio'] as $title => $url) {
-    $link_array = array('url' => 'https://web.archive.org'.$url, 'title' => $title);
-    $node->field_audio_links[$node->language][] = $link_array;
+  foreach ($final_list_urls as $query) {
+    scraper($query);
   }
 
-  $node->path = array('alias' => $key);
-  $node = node_submit($node); 
-  node_save($node);
-  // pre_print($node);
-  return 'x';
+  return 'done';
 }
 
-// loop through all pages.
+function getPagesForLetter($url) {
+  $html = new DOMDocument();
+  @$html->loadHTMLFile($url);
+
+  foreach($html->getElementsByTagName('div') as $div){
+    if($div->getAttribute('align') === 'center'){
+      foreach ($div->getElementsByTagName('a') as $a) {
+        if (strpos($a->textContent, '»') !== FALSE) {
+          // if you reach the end of the page numbers
+          break;
+        } else {
+          $last_page = $a->textContent;
+        }
+      }
+    }
+  };
+  return $last_page;
+}
+
+function scraper($url) {
+  // Get all records that begin with the letter in a category.
+
+
+  $html = new DOMDocument();
+  // $url = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/f38.html';
+  @$html->loadHTMLFile($url);
+
+
+  // Empty array to hold all links to return 
+  $links = array(); 
+  $imgs = array(); 
+
+  //Loop through each <a> tag in the dom and add it to the link array 
+  $count = 0;
+  foreach($html->getElementsByTagName('a') as $link) { 
+    if ($count > 116) {
+      $links[] = array('url' => $link->getAttribute('href'), 'text' => $link->nodeValue); 
+    }
+    if ($link->nodeValue === '1') {
+      break;
+    }
+    $count++;
+  }
+  array_pop($links);
+  array_pop($links);
+
+  $reviews = array();
+  $count = 0;
+  $review_index = 0;
+  foreach($html->getElementsByTagName('p') as $ptag) { 
+    $count++;
+    if ($count > 4) {
+
+      foreach ($ptag->childNodes as $node) {
+      // for each thing inside a review...
+        if ($node->nodeValue) {
+          $reviews['review' . $review_index][] = $node->nodeValue;
+        }
+      }
+
+      foreach ($ptag->getElementsByTagName('img') as $imgnode) {
+        if ($imgnode->getAttribute('alt') == 'album cover') {
+          $reviews['review' . $review_index][] = $imgnode->getAttribute('src');
+        }
+      }
+      $review_index++;
+    }
+  } 
+
+  $formatted_reviews = array();
+  $link_count = 0;
+  foreach ($reviews as $key => $review) {
+
+    if ($review['1'] === 'top of page') {
+      break;
+    }
+
+    $formatted_reviews[$key]['artist'] = $review['1'];
+    $formatted_reviews[$key]['title'] = $review['2'];
+    $formatted_reviews[$key]['labelinfo'] = $review['3'];
+
+    for($i = 4; $i < count($review); $i++){
+      
+      if (!strpos($review[$i], "CURRENTLY OUT OF PRINT")) {
+
+        if(substr($review[$i], 0, 11) === "MPEG Stream"){
+          $song_title = substr($review[$i], 13);
+          $formatted_reviews[$key]['audio'][$song_title] = '';
+        } elseif (substr($review[$i], 0, 9) === "RealAudio") {
+          $song_title = substr($review[$i], 16);
+          $formatted_reviews[$key]['audio'][$song_title] = '';
+        }else {
+          $formatted_reviews[$key]['body'][] = $review[$i];
+        }
+
+        if(substr($review[$i], 0, 11) === "MPEG Stream" || substr($review[$i], 0, 9) === "RealAudio") {
+          $formatted_reviews[$key]['audio'][$song_title] = $links[$link_count]['url'];
+          $link_count++;
+        }
+
+      }
+
+    }
+
+  }
+
+  foreach ($formatted_reviews as $review_index => $review) {
+    $image_link = $review['body'][count($review['body']) - 1];
+    if(substr($image_link, 0, 5) === "/web/"){
+      $formatted_reviews[$review_index]['img'] = $image_link;
+      array_pop($formatted_reviews[$review_index]['body']);
+    }
+  }
+
+  pre_print($formatted_reviews);
+  save_reviews_as_nodes($formatted_reviews);
+}
+
+function save_reviews_as_nodes($formatted_reviews) {
+  foreach ($formatted_reviews as $key => $review) {
+    $node = new StdClass();
+    $node->type = 'review';
+    node_object_prepare($node);
+    $node->status = 1;
+    $node->title = $review['title'];
+    // $node->content['field_artist'] = $review['artist'];
+    // $node->content['field_label_info'] = $review['labelinfo'];
+    $node->language = LANGUAGE_NONE;
+
+    $body_text = '';
+    foreach ($review['body'] as $paragraph) {
+      $body_text .= $paragraph;
+    }
+    $node->field_artist[$node->language][0]['value'] = $review['artist'];
+    $node->field_label_info[$node->language][0]['value'] = $review['labelinfo'];
+    $node->field_album_art[$node->language][0] = array('url' => 'https://web.archive.org'. $review['img'], 'title' => 'album_art');
+    $node->field_review_body[$node->language][0]['value'] = $body_text;
+
+    foreach ($review['audio'] as $title => $url) {
+      $link_array = array('url' => 'https://web.archive.org'.$url, 'title' => $title);
+      $node->field_audio_links[$node->language][] = $link_array;
+    }
+
+    $node->path = array('alias' => $key);
+    $node = node_submit($node); 
+    node_save($node);
+  }
 }
 
 function pre_print($input) {
