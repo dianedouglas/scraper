@@ -71,34 +71,8 @@ function scraper($url) {
   $html = new DOMDocument();
   @$html->loadHTMLFile($url);
 
-
-  // Empty array to hold all links to return 
-  $links = array(); 
-  $imgs = array(); 
-
-  //Loop through each <a> tag in the dom and add it to the link array 
-  $count = 0;
-  foreach($html->getElementsByTagName('a') as $link) { 
-    if ($count > 116) {
-      $links[] = array('url' => $link->getAttribute('href'), 'text' => $link->nodeValue); 
-    }
-    if ($link->nodeValue === '1') {
-      break;
-    }
-    $count++;
-  }
-  array_pop($links);
-  array_pop($links);
-  // pre_print($links);
-  // Now $links holds a flat array of all links.
-  // $links[0] => Array
-  // (
-  //     [url] => /web/20150322130420/http://aquariusrecords.org/audio/amtinotoinfino.m3u
-  //     [text] => "In O"
-  // )
-
   $reviews = array(); //hold raw review data.
-  $count = 0; // need this because reviews are stored as paragraph tags. But not the first 4.
+  $count = 0; // need this because reviews are stored as paragraph tags. But not the first 4 lol :)
   $review_index = 0; // we'll use this to number the reviews as we store them in the $reviews array.
 
   foreach($html->getElementsByTagName('p') as $ptag) { 
@@ -125,6 +99,9 @@ function scraper($url) {
           $reviews['review' . $review_index]['img'] = $imgnode->getAttribute('src');
         }
       }
+      foreach ($ptag->getElementsByTagName('a') as $link) {
+        $reviews['review' . $review_index]['audio'][$link->nodeValue] = $link->getAttribute('href');
+      }
       $review_index++;
     }
   } 
@@ -142,16 +119,32 @@ function scraper($url) {
         [3] => (Important) cd 14.98
         [4] => THIS IS CURRENTLY OUT OF PRINT OR OTHERWISE UNAVAILABLE TO US AT THE MOMENT, SO PLEASE DO NOT ORDER IT. SORRY.
         [5] => It's really hard to keep up with these guys. We love pretty much everything they do...
-        [6] => In O To Infinity marks two milestones of sorts for the bands, and for fans, ...
-        [7] => And as much as we love all the different facets of AMT, this might be our favorite, ...
-          // audio links
+        [6] => In O To Infinity marks two milestones of sorts for the bands, and for fans, one is the return of Cotton Casino to the fold...
+        [7] => And as much as we love all the different facets of AMT...
+        [8] => "In A" is all chants and grunts and weird vocalizations...
+        [9] => And finally, "In Infinity", which contrary to what we were ...
+        [10] => Another AMT winner, to add to that dedicated shelf in your house ...
+
+
         [11] => MPEG Stream: "In O"
         [12] => 
 
+
+
+
         [13] => MPEG Stream: "In A"
         [14] => 
-          // album art
+
+
+
+
         [img] => /web/20150322130420im_/http://aquariusrecords.org/images/amtinotocd.jpg
+        [audio] => Array
+            (
+                ["In O"] => /web/20150322130420/http://aquariusrecords.org/audio/amtinotoinfino.m3u
+                ["In A"] => /web/20150322130420/http://aquariusrecords.org/audio/amtinotoinfina.m3u
+            )
+
     )
 
   */
@@ -159,12 +152,14 @@ function scraper($url) {
 
 
   $formatted_reviews = format_reviews_for_saving($reviews);
+  // pre_print($formatted_reviews);
   save_reviews_as_nodes($formatted_reviews);
 }
 
 function format_reviews_for_saving($reviews) {
   $formatted_reviews = array();
-  $link_count = 0;
+  // go through each raw review and format it for saving.
+  // instead of a flat array of paragraphs, we want to separately store the artist, title, label info, etc. 
   foreach ($reviews as $key => $review) {
 
     if ($review['1'] === 'top of page') {
@@ -175,24 +170,14 @@ function format_reviews_for_saving($reviews) {
     $formatted_reviews[$key]['title'] = $review['2'];
     $formatted_reviews[$key]['labelinfo'] = $review['3'];
     $formatted_reviews[$key]['img'] = $review['img'];
+    $formatted_reviews[$key]['audio'] = $review['audio'];
 
     for($i = 4; $i < count($review); $i++){
-      
+      // we also don't want to store extra paragraphs that are not part of the review.
       if (!strpos($review[$i], "CURRENTLY OUT OF PRINT")) {
 
-        if(substr($review[$i], 0, 11) === "MPEG Stream"){
-          $song_title = substr($review[$i], 13);
-          $formatted_reviews[$key]['audio'][$song_title] = '';
-        } elseif (substr($review[$i], 0, 9) === "RealAudio") {
-          $song_title = substr($review[$i], 16);
-          $formatted_reviews[$key]['audio'][$song_title] = '';
-        }else {
+        if(!(substr($review[$i], 0, 11) === "MPEG Stream") && !(substr($review[$i], 0, 9) === "RealAudio")) {
           $formatted_reviews[$key]['body'][] = $review[$i];
-        }
-
-        if(substr($review[$i], 0, 11) === "MPEG Stream" || substr($review[$i], 0, 9) === "RealAudio") {
-          $formatted_reviews[$key]['audio'][$song_title] = $links[$link_count]['url'];
-          $link_count++;
         }
 
       }
@@ -201,10 +186,51 @@ function format_reviews_for_saving($reviews) {
 
   }
 
+  // A formatted review now has this format:
+  /*
+    [review0] => Array
+        (
+            [artist] => ACID MOTHERS TEMPLE & THE MELTING PARAISO U.F.O.
+            [title] => In O To Infinity
+            [labelinfo] => (Important) cd 14.98
+            [img] => /web/20150322130420im_/http://aquariusrecords.org/images/amtinotocd.jpg
+            [audio] => Array
+                (
+                    ["In O"] => /web/20150322130420/http://aquariusrecords.org/audio/amtinotoinfino.m3u
+                    ["In A"] => /web/20150322130420/http://aquariusrecords.org/audio/amtinotoinfina.m3u
+                )
+
+            [body] => Array
+                (
+                    [0] => It's really hard to keep up with these guys...
+                    [1] => In O To Infinity marks two milestones of sorts for the bands...
+                    [2] => And as much as we love all the different facets of AMT, this might be our favorite, their blissed out cosmic space drift, long form dronescapes, ...
+                    [3] => "In A" is all chants and grunts and weird vocalizations, ...
+                    [4] => And finally, "In Infinity", which contrary to what we were expecting, is the most 'rock' of the bunch, a wild sprawling avant jazz...
+                    [5] => Another AMT winner...
+    
+
+                    [6] => 
+
+
+    
+
+                    [7] => 
+
+
+    
+
+                    [8] => 
+                    [9] => 
+                )
+        )
+  */
+
   return $formatted_reviews;
 }
 
 function save_reviews_as_nodes($formatted_reviews) {
+  // save each review as a node with type 'review' to be displayed in Views.
   foreach ($formatted_reviews as $key => $review) {
     $node = new StdClass();
     $node->type = 'review';
@@ -233,6 +259,7 @@ function save_reviews_as_nodes($formatted_reviews) {
   }
 }
 
+// utility function for displaying large arrays of data.
 function pre_print($input) {
   print '<pre>';
   print_r($input);
