@@ -18,34 +18,65 @@ function myscraper_menu() {
 function scrape() {
 
   // get array of urls to query. 
-  $url_queries = array();
-  // go through each letter in the alphabet and figure out how many pages on each letter.
-  $alphabet = range('a', 'z');
-  $alphabet[] = 'other';
-  // base path for every page.
-  $base_path = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/';
+  // $url_queries = array();
+  // // go through each letter in the alphabet and figure out how many pages on each letter.
+  // $alphabet = range('a', 'z');
+  // $alphabet[] = 'other';
+  // // base path for every page.
+  // $base_path = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/';
   
-  foreach ($alphabet as $letter) {
-    $current_url = $base_path . $letter . '.html';
-    $total = getPagesForLetter($current_url);
-    $url_queries[$letter] = $total; 
-  }
+  // foreach ($alphabet as $letter) {
+  //   $current_url = $base_path . $letter . '.html';
+  //   $total = getPagesForLetter($current_url);
+  //   $url_queries[$letter] = $total; 
+  // }
 
-  $final_list_urls = [];
-  foreach ($url_queries as $letter => $total_pages) {
-    $final_list_urls[] = $base_path . $letter . '.html';
-    for ($i=2; $i <=$total_pages ; $i++) { 
-      $final_list_urls[] = $base_path . $letter . $i . '.html';
-    }
-  }
+  // $final_list_urls = [];
+  // foreach ($url_queries as $letter => $total_pages) {
+  //   $final_list_urls[$letter] = $base_path . $letter . '.html';
+  //   for ($i=2; $i <=$total_pages ; $i++) { 
+  //     $final_list_urls[$letter . $i] = $base_path . $letter . $i . '.html';
+  //   }
+  // }
+
+  // pre_print($final_list_urls);
 
   // redefine to single url for testing:
-  $final_list_urls = ['https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/a7.html'];
+  $final_list_urls = [];
+  $final_list_urls['f2'] = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/f2.html';
+  $final_list_urls['f3'] = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/f3.html';
 
-  foreach ($final_list_urls as $query) {
-    scraper($query);
+  // $headers = 'key,artist,title,labelinfo,img,audio,audio-title,body'.'\n'; //headers and newline
+
+  $final_csv = [];
+
+  foreach ($final_list_urls as $url_index => $query) {
+    $formatted_reviews = scraper($query);
+    $csv_arrays = add_reviews_to_csv_string($formatted_reviews, $url_index);
+    $final_csv = array_merge($final_csv, $csv_arrays);
   }
 
+  // pre_print($final_csv);
+
+  // send response headers to the browser
+  drupal_add_http_header('Content-Type', 'text/csv');
+  drupal_add_http_header('Content-Disposition', 'attachment;filename=csvfile.csv');
+
+  // $csv_array = array(
+  //   array('one', 'two', 'checkity;;check', "blahblahbla's \"Proper Name\"", 'three'),
+  //   array('1', '2', '3'),
+  // );
+  $fp = fopen('php://output', 'w');
+
+  $headers = array('key','artist','title','labelinfo','img','audio','audio-title','body');
+  fputcsv($fp, $headers, "|", '"');
+  
+  foreach($final_csv as $line){
+    fputcsv($fp, $line, "|", '"');
+  }
+
+  fclose($fp);
+  drupal_exit();
   return 'done';
 }
 
@@ -98,11 +129,11 @@ function scraper($url) {
         // raw HTML uses a blank 'dot.gif' image as spacer that we don't want to store. 
         // also, not all albums have album art stored. When you find one store it in the review under 'img'
         if ($imgnode->getAttribute('alt') == 'album cover') {
-          $reviews['review' . $review_index]['img'] = $imgnode->getAttribute('src');
+          $reviews['review' . $review_index]['img'] = 'https://web.archive.org' . $imgnode->getAttribute('src');
         }
       }
       foreach ($ptag->getElementsByTagName('a') as $link) {
-        $reviews['review' . $review_index]['audio'][$link->nodeValue] = $link->getAttribute('href');
+        $reviews['review' . $review_index]['audio'][$link->nodeValue] = 'https://web.archive.org' . $link->getAttribute('href');
       }
       $review_index++;
     }
@@ -140,52 +171,55 @@ function scraper($url) {
 
 
 
-        [img] => /web/20150322130420im_/http://aquariusrecords.org/images/amtinotocd.jpg
+        [img] => https://web.archive.org/web/20150322130420im_/http://aquariusrecords.org/images/amtinotocd.jpg
         [audio] => Array
             (
-                ["In O"] => /web/20150322130420/http://aquariusrecords.org/audio/amtinotoinfino.m3u
-                ["In A"] => /web/20150322130420/http://aquariusrecords.org/audio/amtinotoinfina.m3u
+                ["In O"] => https://web.archive.org/web/20150322130420/http://aquariusrecords.org/audio/amtinotoinfino.m3u
+                ["In A"] => https://web.archive.org/web/20150322130420/http://aquariusrecords.org/audio/amtinotoinfina.m3u
             )
 
     )
 
   */
 
-
-
-  $formatted_reviews = format_reviews_for_saving($reviews);
-  // pre_print($formatted_reviews);
-  save_reviews_as_nodes($formatted_reviews);
+  // pre_print($reviews);
+  // return 'test';
+  return format_reviews_for_saving($reviews);
 }
 
 function format_reviews_for_saving($reviews) {
   $formatted_reviews = array();
   // go through each raw review and format it for saving.
   // instead of a flat array of paragraphs, we want to separately store the artist, title, label info, etc. 
-  foreach ($reviews as $key => $review) {
+  if (!empty($reviews)) {
+    foreach ($reviews as $key => $review) {
 
-    if ($review['1'] === 'top of page') {
-      break;
-    }
+      if ($review['1'] === 'top of page') {
+        break;
+      }
 
-    $formatted_reviews[$key]['artist'] = $review['1'];
-    $formatted_reviews[$key]['title'] = $review['2'];
-    $formatted_reviews[$key]['labelinfo'] = $review['3'];
-    $formatted_reviews[$key]['img'] = $review['img'];
-    $formatted_reviews[$key]['audio'] = $review['audio'];
 
-    for($i = 4; $i < count($review); $i++){
-      // we also don't want to store extra paragraphs that are not part of the review.
-      if (!strpos($review[$i], "CURRENTLY OUT OF PRINT")) {
+      $formatted_reviews[$key]['artist'] = !empty($review['1']) ? $review['1'] : 'No Artist';
+      $formatted_reviews[$key]['title'] = !empty($review['2']) ? $review['2'] : 'No Title';
+      $formatted_reviews[$key]['labelinfo'] = !empty($review['3']) ? $review['3'] : 'No Label Info';
+      $formatted_reviews[$key]['img'] = !empty($review['img']) ? $review['img'] : 'No Image';
+      $formatted_reviews[$key]['audio'] = !empty($review['audio']) ? $review['audio'] : array('No Audio' => 'noaudio');
 
-        if(!(substr($review[$i], 0, 11) === "MPEG Stream") && !(substr($review[$i], 0, 9) === "RealAudio")) {
-          $formatted_reviews[$key]['body'][] = $review[$i];
+      for($i = 4; $i < count($review); $i++){
+        if(!empty($review[$i])){
+          // we also don't want to store extra paragraphs that are not part of the review.
+          if (!strpos($review[$i], "CURRENTLY OUT OF PRINT")) {
+
+            if(!(substr($review[$i], 0, 11) === "MPEG Stream") && !(substr($review[$i], 0, 9) === "RealAudio")) {
+              $formatted_reviews[$key]['body'][] = $review[$i];
+            }
+
+          }
         }
 
       }
 
     }
-
   }
 
   // A formatted review now has this format:
@@ -195,11 +229,11 @@ function format_reviews_for_saving($reviews) {
             [artist] => ACID MOTHERS TEMPLE & THE MELTING PARAISO U.F.O.
             [title] => In O To Infinity
             [labelinfo] => (Important) cd 14.98
-            [img] => /web/20150322130420im_/http://aquariusrecords.org/images/amtinotocd.jpg
+            [img] => https://web.archive.org/web/20150322130420im_/http://aquariusrecords.org/images/amtinotocd.jpg
             [audio] => Array
                 (
-                    ["In O"] => /web/20150322130420/http://aquariusrecords.org/audio/amtinotoinfino.m3u
-                    ["In A"] => /web/20150322130420/http://aquariusrecords.org/audio/amtinotoinfina.m3u
+                    ["In O"] => https://web.archive.org/web/20150322130420/http://aquariusrecords.org/audio/amtinotoinfino.m3u
+                    ["In A"] => https://web.archive.org/web/20150322130420/http://aquariusrecords.org/audio/amtinotoinfina.m3u
                 )
 
             [body] => Array
@@ -231,34 +265,60 @@ function format_reviews_for_saving($reviews) {
   return $formatted_reviews;
 }
 
-function save_reviews_as_nodes($formatted_reviews) {
-  // save each review as a node with type 'review' to be displayed in Views.
-  foreach ($formatted_reviews as $key => $review) {
-    $node = new StdClass();
-    $node->type = 'review';
-    node_object_prepare($node);
-    $node->status = 1;
-    $node->title = $review['title'];
-    $node->language = LANGUAGE_NONE;
+function add_reviews_to_csv_string($formatted_reviews, $url_index) {
+  $output = [];
 
+  foreach ($formatted_reviews as $key => $review) {
+    $csv_review = [];
+    //key
+    array_push($csv_review, $url_index . $key); // a7 . review0
+    //artist
+    array_push($csv_review, format_strings($review['artist']));
+    //title
+    array_push($csv_review, format_strings($review['title']));
+    //label info
+    array_push($csv_review, format_strings($review['labelinfo']));
+    //album art
+    array_push($csv_review, $review['img']); //url no need to format
+    //audio links
+    if(empty($review['audio'])){
+      $review['audio'] = array('No Audio' => 'noaudio');
+    };
+    $number_of_audio_links = count($review['audio']);
+    $index = 0;
+    $audio_urls = '';
+    $audio_titles = '';
+    if(empty($review['body'])){
+      $review['body'] = array('No review.');
+    };
+    foreach ($review['audio'] as $title => $url) {
+      $index++;
+      if ($index === $number_of_audio_links) {
+        // if we're on the last link, add a comma as separator.
+        $audio_urls .= $url; 
+        $audio_titles .= format_strings($title);
+      } else {
+        // otherwise, add each url with separator of ;; for multi value field separator
+        $audio_urls .= $url . ';;';
+        $audio_titles .= format_strings($title) . ';;';
+      }
+    }
+    array_push($csv_review, $audio_urls);
+    array_push($csv_review, $audio_titles);
+    //body text
     $body_text = '';
     foreach ($review['body'] as $paragraph) {
-      $body_text .= $paragraph;
+      $body_text .= format_strings($paragraph);
     }
-    $node->field_artist[$node->language][0]['value'] = $review['artist'];
-    $node->field_label_info[$node->language][0]['value'] = $review['labelinfo'];
-    $node->field_album_art[$node->language][0] = array('url' => 'https://web.archive.org'. $review['img'], 'title' => 'album_art');
-    $node->field_review_body[$node->language][0]['value'] = $body_text;
-
-    foreach ($review['audio'] as $title => $url) {
-      $link_array = array('url' => 'https://web.archive.org'.$url, 'title' => $title);
-      $node->field_audio_links[$node->language][] = $link_array;
-    }
-
-    $node->path = array('alias' => $key);
-    $node = node_submit($node); 
-    node_save($node);
+    array_push($csv_review, $body_text);
+    array_push($output, $csv_review);
   }
+
+  return $output;
+}
+
+function format_strings($string) {
+  return str_replace('"', "\"", $string);
 }
 
 // utility function for displaying large arrays of data.
