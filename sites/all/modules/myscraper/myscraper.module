@@ -20,8 +20,8 @@ function scrape() {
   // get array of urls to query. 
   $url_queries = array();
   // go through each letter in the alphabet and figure out how many pages on each letter.
-  $alphabet = range('a', 'z');
-  $alphabet[] = 'other';
+  $alphabet = range('a', 'b');
+  // $alphabet[] = 'other';
   // base path for every page.
   $base_path = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/';
   
@@ -198,12 +198,14 @@ function format_reviews_for_saving($reviews) {
           // review body starts here. magazine/book/dvd has no artist. jump right to title in paragraph 1.
           $formatted_reviews[$key]['title'] = !empty($review['1']) ? $review['1'] : 'No Title';    
           $formatted_reviews[$key]['artist'] = 'No Artist';
+          $formatted_reviews[$key]['labelinfo'] = 'No Label Info';
           $paragraph_to_start_review_body = 3;
 
         } else {
           // normal. has artist.
           $formatted_reviews[$key]['artist'] = !empty($review['1']) ? $review['1'] : 'No Artist';
           $formatted_reviews[$key]['title'] = !empty($review['2']) ? $review['2'] : 'No Title';
+          $formatted_reviews[$key]['labelinfo'] = !empty($review['3']) ? $review['3'] : 'No Label Info';;
         }
       } else {
         // if there is nothing in review paragraph 3, then no label info.
@@ -282,11 +284,12 @@ function add_reviews_to_csv_string($formatted_reviews, $url_index) {
     //key
     array_push($csv_review, $url_index . $key); // a7 . review0
     //artist
-    array_push($csv_review, format_strings(!empty($review['artist']) ? $review['artist'] : 'No Artist'));
+    //format_strings replaces any double quote with the escape character.
+    array_push($csv_review, format_strings($review['artist']));
     //title
-    array_push($csv_review, format_strings(!empty($review['title']) ? $review['title'] : 'No Title'));
+    array_push($csv_review, format_strings($review['title']));
     //label info
-    array_push($csv_review, format_strings(!empty($review['labelinfo']) ? $review['labelinfo'] : 'No Label Info'));
+    array_push($csv_review, format_strings($review['labelinfo']));
     //album art
     array_push($csv_review, $review['img']); //url no need to format
     //audio links
@@ -339,10 +342,8 @@ function pre_print($input) {
 
 /* 
 Drush commands
-drush dl feeds
 drush en feeds
 drush en feeds_ui
-drush dl feeds_tamper
 drush en feeds_tamper
 drush en feeds_tamper_ui
 
@@ -374,6 +375,9 @@ feeds tamper tab:
 add plugin to any multi value fields (audio url and audio title). 
 type = explode
 delimiter = ;;
+
+Then enable myscraper module, go to /scrape to download file (locally with php.ini and my.cnf settings large)
+Then go to /import and load the .csv file!
 
 */
 
