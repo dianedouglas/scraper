@@ -20,8 +20,8 @@ function scrape() {
   // get array of urls to query. 
   $url_queries = array();
   // go through each letter in the alphabet and figure out how many pages on each letter.
-  $alphabet = range('a', 'b');
-  // $alphabet[] = 'other';
+  $alphabet = range('a', 'z');
+  $alphabet[] = 'other';
   // base path for every page.
   $base_path = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/';
   
