@@ -18,33 +18,33 @@ function myscraper_menu() {
 function scrape() {
 
   // get array of urls to query. 
-  // $url_queries = array();
-  // // go through each letter in the alphabet and figure out how many pages on each letter.
-  // $alphabet = range('a', 'z');
+  $url_queries = array();
+  // go through each letter in the alphabet and figure out how many pages on each letter.
+  $alphabet = range('a', 'g');
   // $alphabet[] = 'other';
-  // // base path for every page.
-  // $base_path = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/';
+  // base path for every page.
+  $base_path = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/';
   
-  // foreach ($alphabet as $letter) {
-  //   $current_url = $base_path . $letter . '.html';
-  //   $total = getPagesForLetter($current_url);
-  //   $url_queries[$letter] = $total; 
-  // }
+  foreach ($alphabet as $letter) {
+    $current_url = $base_path . $letter . '.html';
+    $total = getPagesForLetter($current_url);
+    $url_queries[$letter] = $total; 
+  }
 
-  // $final_list_urls = [];
-  // foreach ($url_queries as $letter => $total_pages) {
-  //   $final_list_urls[$letter] = $base_path . $letter . '.html';
-  //   for ($i=2; $i <=$total_pages ; $i++) { 
-  //     $final_list_urls[$letter . $i] = $base_path . $letter . $i . '.html';
-  //   }
-  // }
+  $final_list_urls = [];
+  foreach ($url_queries as $letter => $total_pages) {
+    $final_list_urls[$letter] = $base_path . $letter . '.html';
+    for ($i=2; $i <=$total_pages ; $i++) { 
+      $final_list_urls[$letter . $i] = $base_path . $letter . $i . '.html';
+    }
+  }
 
   // pre_print($final_list_urls);
 
   // redefine to single url for testing:
-  $final_list_urls = [];
-  $final_list_urls['f2'] = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/f2.html';
-  $final_list_urls['f3'] = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/f3.html';
+  // $final_list_urls = [];
+  // $final_list_urls['f2'] = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/f2.html';
+  // $final_list_urls['f3'] = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/f3.html';
 
   // $headers = 'key,artist,title,labelinfo,img,audio,audio-title,body'.'\n'; //headers and newline
 
