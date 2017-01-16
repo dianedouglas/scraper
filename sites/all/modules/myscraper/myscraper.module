@@ -20,7 +20,7 @@ function scrape() {
   // get array of urls to query. 
   $url_queries = array();
   // go through each letter in the alphabet and figure out how many pages on each letter.
-  $alphabet = range('a', 'g');
+  $alphabet = range('a', 'b');
   // $alphabet[] = 'other';
   // base path for every page.
   $base_path = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/';
@@ -43,10 +43,8 @@ function scrape() {
 
   // redefine to single url for testing:
   // $final_list_urls = [];
-  // $final_list_urls['f2'] = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/f2.html';
+  // $final_list_urls['a2'] = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/a2.html';
   // $final_list_urls['f3'] = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/f3.html';
-
-  // $headers = 'key,artist,title,labelinfo,img,audio,audio-title,body'.'\n'; //headers and newline
 
   $final_csv = [];
 
@@ -62,10 +60,6 @@ function scrape() {
   drupal_add_http_header('Content-Type', 'text/csv');
   drupal_add_http_header('Content-Disposition', 'attachment;filename=csvfile.csv');
 
-  // $csv_array = array(
-  //   array('one', 'two', 'checkity;;check', "blahblahbla's \"Proper Name\"", 'three'),
-  //   array('1', '2', '3'),
-  // );
   $fp = fopen('php://output', 'w');
 
   $headers = array('key','artist','title','labelinfo','img','audio','audio-title','body');
@@ -197,15 +191,30 @@ function format_reviews_for_saving($reviews) {
       if ($review['1'] === 'top of page') {
         break;
       }
+      // check label info field first to know if it's a book or magazine - then review body starts here. 
+      $paragraph_to_start_review_body = 4;
+      if (!empty($review['3'])) {
+        if (strlen($review['3'] > 50)) {
+          // review body starts here. magazine/book/dvd has no artist. jump right to title in paragraph 1.
+          $formatted_reviews[$key]['title'] = !empty($review['1']) ? $review['1'] : 'No Title';    
+          $formatted_reviews[$key]['artist'] = 'No Artist';
+          $paragraph_to_start_review_body = 3;
 
+        } else {
+          // normal. has artist.
+          $formatted_reviews[$key]['artist'] = !empty($review['1']) ? $review['1'] : 'No Artist';
+          $formatted_reviews[$key]['title'] = !empty($review['2']) ? $review['2'] : 'No Title';
+        }
+      } else {
+        // if there is nothing in review paragraph 3, then no label info.
+        $formatted_reviews[$key]['labelinfo'] = 'No Label Info';
+      }
 
-      $formatted_reviews[$key]['artist'] = !empty($review['1']) ? $review['1'] : 'No Artist';
-      $formatted_reviews[$key]['title'] = !empty($review['2']) ? $review['2'] : 'No Title';
-      $formatted_reviews[$key]['labelinfo'] = !empty($review['3']) ? $review['3'] : 'No Label Info';
       $formatted_reviews[$key]['img'] = !empty($review['img']) ? $review['img'] : 'No Image';
       $formatted_reviews[$key]['audio'] = !empty($review['audio']) ? $review['audio'] : array('No Audio' => 'noaudio');
 
-      for($i = 4; $i < count($review); $i++){
+      // copy all paragraphs of review
+      for($i = $paragraph_to_start_review_body; $i < count($review); $i++){
         if(!empty($review[$i])){
           // we also don't want to store extra paragraphs that are not part of the review.
           if (!strpos($review[$i], "CURRENTLY OUT OF PRINT")) {
@@ -273,11 +282,11 @@ function add_reviews_to_csv_string($formatted_reviews, $url_index) {
     //key
     array_push($csv_review, $url_index . $key); // a7 . review0
     //artist
-    array_push($csv_review, format_strings($review['artist']));
+    array_push($csv_review, format_strings(!empty($review['artist']) ? $review['artist'] : 'No Artist'));
     //title
-    array_push($csv_review, format_strings($review['title']));
+    array_push($csv_review, format_strings(!empty($review['title']) ? $review['title'] : 'No Title'));
     //label info
-    array_push($csv_review, format_strings($review['labelinfo']));
+    array_push($csv_review, format_strings(!empty($review['labelinfo']) ? $review['labelinfo'] : 'No Label Info'));
     //album art
     array_push($csv_review, $review['img']); //url no need to format
     //audio links
@@ -327,5 +336,45 @@ function pre_print($input) {
   print_r($input);
   print '</pre>';
 }
+
+/* 
+Drush commands
+drush dl feeds
+drush en feeds
+drush en feeds_ui
+drush dl feeds_tamper
+drush en feeds_tamper
+drush en feeds_tamper_ui
+
+in content type, add album title as text. 
+change view to show that instead of content title.
+change view filter to include album title 
+
+Add feed importer:
+basic settings: standalone form, periodic off, import on submission on.
+fetcher: file upload.
+parser: csv
+csv parser settings: default delimiter |, no headers unchecked, utf8.
+processor: node
+node processor settings: bundle = 'review' (content type), "Update existing nodes", delete non existant nodes,
+do not authorize or expire.
+mapping: 
+
+key - Title (title) 
+Used as unique.
+artist - Artist (field_artist)   
+title - Album Title (field_album_title)   
+labelinfo - Label Info (field_label_info)   
+img - Album Art: URL (field_album_art:url)    
+audio - Old Audio Links (Not active, for records keeping purposes): URL (field_audio_links:url)   
+audio-title - Old Audio Links (Not active, for records keeping purposes): Title (field_audio_links:title)   
+body - Review Body (field_review_body)
+
+feeds tamper tab:
+add plugin to any multi value fields (audio url and audio title). 
+type = explode
+delimiter = ;;
+
+*/
 
 ?>
