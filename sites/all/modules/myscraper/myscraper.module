@@ -41,9 +41,10 @@ function scrape() {
 
   // pre_print($final_list_urls);
 
-  // redefine to single url for testing:
+  // redefine to single url if you want to test single pages for oddly formatted reviews:
   // $final_list_urls = [];
-  // $final_list_urls['a2'] = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/a2.html';
+  // $final_list_urls['w8'] = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/w8.html';
+  // $final_list_urls['w3'] = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/w8.html';
   // $final_list_urls['f3'] = 'https://web.archive.org/web/20160410015723/http://aquariusrecords.org/cat/f3.html';
 
   $final_csv = [];
@@ -133,7 +134,6 @@ function scraper($url) {
     }
   } 
 
-  // pre_print($reviews);
   // Each entry in $reviews holds an array of paragraph data with variable length including the album art:
   /*
 [review0] => Array
@@ -191,25 +191,20 @@ function format_reviews_for_saving($reviews) {
       if ($review['1'] === 'top of page') {
         break;
       }
-      // check label info field first to know if it's a book or magazine - then review body starts here. 
+      // check label info field first to know if it's a book or magazine - then review body starts early. 
+      // assume review starts at paragraph index 4 because 1 is usually artist, 2 is usually title, 3 is usually label info.
       $paragraph_to_start_review_body = 4;
-      if (!empty($review['3'])) {
-        if (strlen($review['3'] > 50)) {
-          // review body starts here. magazine/book/dvd has no artist. jump right to title in paragraph 1.
-          $formatted_reviews[$key]['title'] = !empty($review['1']) ? $review['1'] : 'No Title';    
-          $formatted_reviews[$key]['artist'] = 'No Artist';
-          $formatted_reviews[$key]['labelinfo'] = 'No Label Info';
-          $paragraph_to_start_review_body = 3;
-
-        } else {
-          // normal. has artist.
-          $formatted_reviews[$key]['artist'] = !empty($review['1']) ? $review['1'] : 'No Artist';
-          $formatted_reviews[$key]['title'] = !empty($review['2']) ? $review['2'] : 'No Title';
-          $formatted_reviews[$key]['labelinfo'] = !empty($review['3']) ? $review['3'] : 'No Label Info';;
-        }
-      } else {
-        // if there is nothing in review paragraph 3, then no label info.
+      if (empty($review['3']) || (strlen($review['3']) > 50)) {
+        //if label info paragraph 3 is empty or > 50 char then save title from paragraph 1 and put the rest in body.
+        $formatted_reviews[$key]['title'] = !empty($review['1']) ? $review['1'] : 'No Title';
+        $formatted_reviews[$key]['artist'] = 'No Artist';
         $formatted_reviews[$key]['labelinfo'] = 'No Label Info';
+        $paragraph_to_start_review_body = 2;
+      } else {
+          // normal. 
+        $formatted_reviews[$key]['artist'] = !empty($review['1']) ? $review['1'] : 'No Artist';
+        $formatted_reviews[$key]['title'] = !empty($review['2']) ? $review['2'] : 'No Title';
+        $formatted_reviews[$key]['labelinfo'] = !empty($review['3']) ? $review['3'] : 'No Label Info';
       }
 
       $formatted_reviews[$key]['img'] = !empty($review['img']) ? $review['img'] : 'No Image';
@@ -220,16 +215,16 @@ function format_reviews_for_saving($reviews) {
         if(!empty($review[$i])){
           // we also don't want to store extra paragraphs that are not part of the review.
           if (!strpos($review[$i], "CURRENTLY OUT OF PRINT")) {
-
             if(!(substr($review[$i], 0, 11) === "MPEG Stream") && !(substr($review[$i], 0, 9) === "RealAudio")) {
               $formatted_reviews[$key]['body'][] = $review[$i];
             }
-
           }
         }
-
       }
-
+      // if after running the loop there are no body paragraphs added, add a blank one so it isn't 'invalid argument for foreach'.
+      if(empty($formatted_reviews[$key]['body'])){
+        $formatted_reviews[$key]['body'][] = ' ';
+      };
     }
   }
 
@@ -272,7 +267,7 @@ function format_reviews_for_saving($reviews) {
                 )
         )
   */
-
+  // pre_print($formatted_reviews);
   return $formatted_reviews;
 }
 
@@ -293,16 +288,10 @@ function add_reviews_to_csv_string($formatted_reviews, $url_index) {
     //album art
     array_push($csv_review, $review['img']); //url no need to format
     //audio links
-    if(empty($review['audio'])){
-      $review['audio'] = array('No Audio' => 'noaudio');
-    };
     $number_of_audio_links = count($review['audio']);
     $index = 0;
     $audio_urls = '';
     $audio_titles = '';
-    if(empty($review['body'])){
-      $review['body'] = array('No review.');
-    };
     foreach ($review['audio'] as $title => $url) {
       $index++;
       if ($index === $number_of_audio_links) {
@@ -325,7 +314,6 @@ function add_reviews_to_csv_string($formatted_reviews, $url_index) {
     array_push($csv_review, $body_text);
     array_push($output, $csv_review);
   }
-
   return $output;
 }
 
@@ -380,5 +368,3 @@ Then enable myscraper module, go to /scrape to download file (locally with php.i
 Then go to /import and load the .csv file!
 
 */
-
-?>
